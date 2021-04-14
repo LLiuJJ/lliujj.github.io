@@ -53,14 +53,14 @@ ti-redis 是基于 tikv 开发的分布式 Redis 协议存储系统
 - 爬10条西湖爬山线
 
 ### 关于我的一些东西
-[马马虎虎写的文章](https://gitbook.cn/gitchat/author/5d7fad728aef5b7c8fd126a3)
-[B站上录的一些视频](https://space.bilibili.com/389476201)
-[联系我](https://lliujj.github.io/about)
+- [马马虎虎写的文章](https://gitbook.cn/gitchat/author/5d7fad728aef5b7c8fd126a3)
+- [B站上录的一些视频](https://space.bilibili.com/389476201)
+- [联系我](https://lliujj.github.io/about)
 
 ### 友情链接
-[loveyacper](https://github.com/loveyacper/Qedis)
-[Jiacheng Huang](https://github.com/jiachengh)
-[Linjie Xu](https://github.com/egg-west)
-[Professor Zichen Xu](https://good.ncu.edu.cn/Pages/Professor.html)
-[hishark](https://hishark777.com/)
+- [loveyacper](https://github.com/loveyacper/Qedis)
+- [Jiacheng Huang](https://github.com/jiachengh)
+- [Linjie Xu](https://github.com/egg-west)
+- [Professor Zichen Xu](https://good.ncu.edu.cn/Pages/Professor.html)
+- [hishark](https://hishark777.com/)
 
