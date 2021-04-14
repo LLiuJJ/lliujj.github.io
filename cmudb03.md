@@ -217,3 +217,4 @@ date: 2019-04-06 17:18:53
 
 ![record-ids](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/record-ids.png)
 
+![testsvg](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/test.svg)
