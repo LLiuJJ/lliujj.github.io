@@ -172,7 +172,7 @@ date: 2019-04-06 17:18:53
 
 ![compaction2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction2.png)
 
-![compaction3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/ompaction3.png)
+![compaction3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction3.png)
 
 ![compaction4](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction4.png)
 
