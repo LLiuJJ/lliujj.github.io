@@ -15,7 +15,7 @@ tags: Database Storage I
 
 **访问这些存储器的时延**
 
-![ACCESSTIMES](https://learnbycoding.oss-cn-beijing.aliyuncs.com/ACCESSTIMES.png)
+![ACCESSTIMES](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/ACCESSTIMES.png)
 
 **数据库设计的目标**
 
@@ -33,17 +33,17 @@ tags: Database Storage I
 - 可以使用mmap映射一个文件的内容到一个进程的地址空间
 - 操作系统的责任是将文件的页换入换出内存
 
-![mmap1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/mmap1.png)
+![mmap1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/mmap1.png)
 
-![mmap2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/mmap2.png)
+![mmap2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/mmap2.png)
 
 **为什么不使用操作系统的调用管理文件？**
 
-![mmap3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/mmap3.png)
+![mmap3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/mmap3.png)
 
-![mmap4](https://learnbycoding.oss-cn-beijing.aliyuncs.com/mmap4.png)
+![mmap4](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/mmap4.png)
 
-![mmap5](https://learnbycoding.oss-cn-beijing.aliyuncs.com/mmap5.png)
+![mmap5](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/mmap5.png)
 
 - 如果我们允许多个线程访问mmap文件去隐藏缺页错误呢？
 - 这对只读的请求是正常工作的，但是当面对多个写请求的时候情况就复杂了。
@@ -78,7 +78,7 @@ tags: Database Storage I
 
 **常见数据库页面大小**
 
-![pages](https://learnbycoding.oss-cn-beijing.aliyuncs.com/pages.png)
+![pages](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/pages.png)
 
 **页面存储架构**
 
@@ -95,12 +95,12 @@ tags: Database Storage I
 
 **LINKED LIST结构Heap file 特点**
 
-![PageLinkList](https://learnbycoding.oss-cn-beijing.aliyuncs.com/PageLinkList.png)
+![PageLinkList](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/PageLinkList.png)
 
 - 在文件开头存储了两个指针：空闲页list的头指针；数据页list的头指针
 - 每一页都跟踪它自己空闲slots的序号
 
-![DirPages](https://learnbycoding.oss-cn-beijing.aliyuncs.com/DirPages.png)
+![DirPages](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/DirPages.png)
 
 - DBMS维护了一个特殊的页面来跟踪数据页的位置在数据库文件中
 - 这个目录也记录了每个页面空闲slot序号
@@ -108,7 +108,7 @@ tags: Database Storage I
 
 **页面头部**
 
-![page_header](https://learnbycoding.oss-cn-beijing.aliyuncs.com/page_header.png)
+![page_header](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/page_header.png)
 
 - 每个页面都包含一个头部，里面包含了页面的元数据信息
   - 页面大小
@@ -129,13 +129,13 @@ tags: Database Storage I
 
 - 记录页面中远足的数量，然后往尾部增加新的元组
 
-![tuple1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/tuple1.png)
+![tuple1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/tuple1.png)
 
-![tuple2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/tuple2.png)
+![tuple2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/tuple2.png)
 
-![tuple3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/tuple3.png)
+![tuple3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/tuple3.png)
 
-![tuple4](https://learnbycoding.oss-cn-beijing.aliyuncs.com/tuple4.png)
+![tuple4](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/tuple4.png)
 
 **页面槽(Slotted pages)**
 
@@ -143,13 +143,13 @@ tags: Database Storage I
 - slot数组映射了slots到元组开始位置的偏移量、
 - header存储了使用了的slots，最后一个被使用slot的起始位置
 
-![slot-page1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/slot-page1.png)
+![slot-page1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/slot-page1.png)
 
-![slot-page2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/slot-page2.png)
+![slot-page2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/slot-page2.png)
 
 **日志文件型数据组织方式**
 
-![log1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/log1.png)
+![log1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/log1.png)
 
 - DBMS只存储日志记录，而不是将元组存储在页面中
 - 系统将数据库如何修改的日志追加到文件
@@ -157,46 +157,46 @@ tags: Database Storage I
   - 将元组标记为已删除
   - 更新属性包含被修改的增量
 
-![log2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/log2.png)
+![log2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/log2.png)
 
 - 要读取记录，DBMS反向记录并重新创建元组，并找到它需要的东西
 - 建立索引允许跳到log的指定位置
 - 定期的压缩日志
 
-![log3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/log3.png)
+![log3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/log3.png)
 
 **日志的压缩**
 
 - 通过删除不必要的记录来将较大的日志文件合并成较小的文件
 - compaction的过程
 
-![compaction1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/compaction1.png)
+![compaction1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction1.png)
 
-![compaction2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/compaction2.png)
+![compaction2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction2.png)
 
-![compaction3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/ompaction3.png)
+![compaction3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/ompaction3.png)
 
-![compaction4](https://learnbycoding.oss-cn-beijing.aliyuncs.com/compaction4.png)
+![compaction4](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction4.png)
 
-![compaction5](https://learnbycoding.oss-cn-beijing.aliyuncs.com/compaction5.png)
+![compaction5](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction5.png)
 
-![compaction6](https://learnbycoding.oss-cn-beijing.aliyuncs.com/compaction6.png)
+![compaction6](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction6.png)
 
-![compaction7](https://learnbycoding.oss-cn-beijing.aliyuncs.com/compaction7.png)
+![compaction7](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/compaction7.png)
 
 **元组布局**
 
 - 元组本质上是一个字节序列
 - DBMS的工作就是解释这些字节属性类型和值
 
-![tuple-header](https://learnbycoding.oss-cn-beijing.aliyuncs.com/tuple-header.png)
+![tuple-header](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/tuple-header.png)
 
 - 每个元组前面都有一个头包含有关它的元数据：可见性信息（用于并发控制）；为NULL值提供的BitMap
 - 我们为什么不需要存储schema的元数据信息呢？
 - 元组里面的数据按你创建表时候的命令组织
 - 组织这些数据是软件工程师要做的事情
 
-![tuple-data](https://learnbycoding.oss-cn-beijing.aliyuncs.com/tuple-data.png)
+![tuple-data](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/tuple-data.png)
 
 **非规范化元组数据(denormalized tuple data)**
 
@@ -204,11 +204,11 @@ tags: Database Storage I
   - 可以减少常见工作负载的I/O请求数量
   - 可以使得update操作更高效
 
-![denormalized1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/denormalized1.png)
+![denormalized1](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/denormalized1.png)
 
-![denormalized2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/denormalized2.png)
+![denormalized2](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/denormalized2.png)
 
-![denormalized3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/denormalized3.png)
+![denormalized3](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/denormalized3.png)
 
 **记录的ID**
 
@@ -217,5 +217,5 @@ tags: Database Storage I
   - 最常见：page_id + offset/slot
   - 也可以包含文件的位置信息
 
-![record-ids](https://learnbycoding.oss-cn-beijing.aliyuncs.com/record-ids.png)
+![record-ids](https://learnbycoding.oss-cn-beijing.aliyuncs.com/CMU-DBMS-COURSE-03-NOTES/record-ids.png)
 
