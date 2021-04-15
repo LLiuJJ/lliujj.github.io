@@ -57,7 +57,7 @@ ti-redis 是基于 tikv 开发的分布式 Redis 协议存储系统
 - [B站上录的一些视频](https://space.bilibili.com/389476201)
 - [联系我](https://lliujj.github.io/about)
 
-### 友情链接
+### 大佬们
 - [loveyacper](https://github.com/loveyacper/Qedis)
 - [Jiacheng Huang](https://github.com/jiachengh)
 - [Linjie Xu](https://github.com/egg-west)
