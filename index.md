@@ -1,5 +1,9 @@
 ### 欢迎来到我的主页
 
+#### 最近研究
+
+[logcabin rpc 实现分析](https://aifund.online/logcabin/rpc)
+
 ### 开发的一些项目
 
 #### 基础架构类
