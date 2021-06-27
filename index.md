@@ -61,7 +61,15 @@ ti-redis 是基于 tikv 开发的分布式 Redis 协议存储系统
 D610 + SIGMA 24mm 试机
 
 ![拱宸桥夜](photo/DSC_4181.jpg)
+拱宸桥夜 (A挡 10s F16 ISO200 24mm)
 
+![北山街](photo/DSC_4194.jpg)
+北山街 (A挡 30s F16 ISO200 24mm)
+
+学习资料
+
+https://book.douban.com/subject/30332929/
+https://book.douban.com/subject/27063333/
 
 ### 关于我的一些东西
 - [马马虎虎写的文章](https://gitbook.cn/gitchat/author/5d7fad728aef5b7c8fd126a3)
