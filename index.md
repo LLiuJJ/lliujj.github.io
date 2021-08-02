@@ -8,6 +8,12 @@
 
 #### 基础架构类
 
+##### eraft (重点投入项目)
+https://github.com/eraft-io/eraft
+
+基于 C++ 实现的 Raft, Etcd Raft 的 c++ 实现版本，目标在 golang 实现的 etcd raft 的基础上实现吞吐，扩展性，性能更强的 raft 算法库。
+
+
 ##### Qedis
 Qedis 是 [BertYoung](https://github.com/loveyacper/Qedis) 基于 C++11 开发的 Redis。
 这个项目是我学习 C++11 的动力来源，贡献了 Rocksdb 引擎以及 ci 构建脚本，后续计划基于 raft 实现 Qedis 复制组 (QGR)。
