@@ -2,14 +2,15 @@
 
 #### 最近研究
 
-[logcabin rpc 实现分析](https://aifund.online/logcabin/rpc)
+[raft复制组](https://github.com/eraft-io/eraft)
 
 ### 开发的一些项目
 
 #### 基础架构类
 
 ##### eraft (重点投入项目)
-https://github.com/eraft-io/eraft
+
+[eraft](https://github.com/eraft-io/eraft)
 
 基于 C++ 实现的 Raft, Etcd Raft 的 c++ 实现版本，目标在 golang 实现的 etcd raft 的基础上实现吞吐，扩展性，性能更强的 raft 算法库。
 
