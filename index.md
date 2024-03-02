@@ -6,9 +6,8 @@ I am interested in the design and implementation of distributed storage systems.
 
 Email: jay_jieliu@outlook.com
 
-### Links
-- [loveyacper](https://github.com/loveyacper/Qedis)
+### My Friends
+- [Professor Zichen Xu](https://good.ncu.edu.cn/Pages/Professor.html)
 - [Jiacheng Huang](https://github.com/jiachengh)
 - [Linjie Xu](https://github.com/egg-west)
-- [Professor Zichen Xu](https://good.ncu.edu.cn/Pages/Professor.html)
 - [hishark](https://hishark777.com/)
