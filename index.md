@@ -6,6 +6,10 @@ I am interested in the design and implementation of distributed storage systems.
 
 Email: jay_jieliu@outlook.com
 
+### Posts
+
+[Etcd write flow analyze.](posts/etcd_write_flow_analyze.md)
+
 ### My social media
 
 - [ZhiHu](https://www.zhihu.com/people/liu-jie-84-52)
