@@ -10,6 +10,8 @@ Email: jay_jieliu@outlook.com
 
 [Etcd write flow analyze.](posts/etcd_write_flow_analyze.md)
 
+[Multi-Version Concurrent Control with etcd](posts/mvcc_in_etcd.md)
+
 ### My social media
 
 - [ZhiHu](https://www.zhihu.com/people/liu-jie-84-52)
