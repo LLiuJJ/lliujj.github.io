@@ -1,5 +1,3 @@
-# Liu Jie
-
 **Email:** jay_jieliu@outlook.com · **Phone:** (+86) 130-xxxx-xxxx · **LinkedIn:** [ColinLJ](https://www.linkedin.com/in/colinlj)
 
 ---
