@@ -1,262 +1,92 @@
-# vLLM 在 Ubuntu 24.04.1 x86_64 上的编译、改动与验证流程
+# vLLM 在 Ubuntu 24.04 x86_64 上的编译与验证流程
 
 > 目标环境：Ubuntu 24.04.1 LTS x86_64 + NVIDIA CUDA GPU。
-> 内容基于本仓库 `docs/getting_started/installation/gpu.cuda.inc.md`、`docs/contributing/incremental_build.md`、`docs/usage/troubleshooting.md`、`AGENTS.md`、`requirements/build/cuda.txt`、`requirements/test/cuda.in` 整理。
+> 内容基于本仓库 `docs/getting_started/installation/gpu.cuda.inc.md`、`docs/contributing/incremental_build.md`、`docs/usage/troubleshooting.md`、`AGENTS.md` 整理。
 
-## 关键约束（先读）
+## 关键约束
 
 | 项 | 要求 | 备注 |
 |----|------|------|
 | Python | 3.10–3.14（推荐 3.12） | `requires-python: >=3.10,<3.15` |
-| PyTorch | `torch==2.13.0` | CUDA/ROCm 版本固定，不要用系统 pip |
+| PyTorch | `torch==2.13.0` | CUDA 版本固定，不要用系统 pip |
 | CUDA | 默认 12.9（也提供 12.8 / 13.0 变体） | Blackwell GPU 需 ≥ 12.8 |
-| GCC | ≥ 11.3 | Ubuntu 24.04 默认 GCC 13.x **已满足**，无需像 22.04 那样装 gcc-11 |
-| 构建工具 | CMake ≥ 3.26.1 + Ninja | 见 `requirements/build/cuda.txt` |
-| 包管理 | 必须 uv | 禁止系统 `python3` / 裸 `pip` |
+| GCC | ≥ 11.3 | Ubuntu 24.04 默认 GCC 13.x 已满足 |
+| 构建工具 | CMake ≥ 3.26.1 + Ninja + ccache | 见 `requirements/build/cuda.txt` |
+| 包管理 | **必须 uv** | 禁止系统 `python3` / 裸 `pip` |
 
 ---
 
-## 1. 环境准备
-
-### 1.1 系统依赖
+## 1. 环境准备与构建
 
 ```bash
-sudo apt update
-sudo apt install -y build-essential python3-dev python3-pip git curl wget
-
-# 加速重复编译（强烈推荐）
-sudo apt install -y ccache
-```
-
-### 1.2 CUDA Toolkit
-
-vLLM 默认用 CUDA 12.9 编译。若尚未安装，从
-<https://developer.nvidia.com/cuda-toolkit-archive> 安装 12.9，然后：
-
-```bash
+# --- 系统依赖 ---
+sudo apt install -y build-essential python3-dev git curl ccache
 export CUDA_HOME=/usr/local/cuda
 export PATH="${CUDA_HOME}/bin:$PATH"
-nvcc --version          # 验证 nvcc 在 PATH
-${CUDA_HOME}/bin/nvcc --version   # 验证 CUDA_HOME 指向正确
-```
 
-### 1.3 安装 uv 并创建虚拟环境
+# --- uv + venv ---
+curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env
+git clone https://github.com/vllm-project/vllm.git && cd vllm
+uv venv --python 3.12 --seed && source .venv/bin/activate
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.local/bin/env      # 让 uv 进 PATH
-
-git clone https://github.com/vllm-project/vllm.git
-cd vllm
-
-uv venv --python 3.12 --seed
-source .venv/bin/activate
-```
-
-### 1.4 构建依赖
-
-```bash
+# --- 构建依赖 ---
 uv pip install -r requirements/build/cuda.txt --torch-backend=auto
 ```
 
-`requirements/build/cuda.txt` 固定了关键版本：`cmake>=3.26.1`、`ninja`、`torch==2.13.0`、
-`setuptools-rust>=1.9.0`、`protobuf>=5.29.6` 等。
+### 三种构建方式
 
-### 1.5（可选）开发钩子
+| 方式 | 命令 | 适用 |
+|:----:|------|------|
+| **A — 仅 Python**（最快） | `VLLM_USE_PRECOMPILED=1 uv pip install --editable . --torch-backend=auto` | 不改 C++/CUDA，复用预编译 `.so` |
+| **B — 完整源码** | `uv pip install -e . --torch-backend=auto` | 改了 `csrc/` 下的 C++/CUDA kernel |
+| **C — Docker** | `DOCKER_BUILDKIT=1 docker build . --target vllm-openai --tag vllm/vllm-openai --file docker/Dockerfile` | 无 GPU 的 CI 或需可复现产物 |
 
-```bash
-uv pip install -r requirements/lint.txt
-pre-commit install
-```
+> 方式 A 工作原理：查找当前分支在 main 上的 base commit → 下载该 commit 的预编译 wheel → 复用其编译产物（`_C.abi3.so` 等）和 `vllm-rs` 二进制。若改了 `csrc/` 却仍用方式 A，import 时会报 `undefined symbol` / `library not found`。
 
----
-
-## 2. 三种构建方式（按场景选其一）
-
-### 方式 A — 仅改 Python 代码（不编译 C++/CUDA，最快）
-
-来源：`docs/getting_started/installation/gpu.cuda.inc.md`（Python-only build）。
-
-```bash
-VLLM_USE_PRECOMPILED=1 uv pip install --editable . --torch-backend=auto
-```
-
-工作原理：
-
-1. 查找当前分支在 `main` 上的 base commit。
-2. 下载该 commit 的预编译 wheel。
-3. 复用其编译产物（`_C.abi3.so`、`_moe_C.abi3.so` 等）和 `vllm-rs` 二进制。
-
-> 注意：若你改了 `csrc/` 下的 C++/CUDA 代码却仍用此方式，import 时会报
-> `library not found` 或 `undefined symbol`。此时必须切到方式 B。
-
-相关环境变量：
-
-- `VLLM_PRECOMPILED_WHEEL_LOCATION`：指定预编译 wheel 的 URL 或本地路径。
-- `VLLM_PRECOMPILED_WHEEL_COMMIT`：覆盖 commit，可设为 `nightly` 选最近已构建的 main commit。
-- `VLLM_PRECOMPILED_WHEEL_VARIANT`：指定变体子目录，如 `cu129`、`cu130`、`cpu`。
-
-若 base commit 的 wheel 尚未构建好（刚合并），可：
-
-```bash
-export VLLM_PRECOMPILED_WHEEL_COMMIT=nightly
-export VLLM_USE_PRECOMPILED=1
-uv pip install --editable .
-```
-
-#### 重建 Rust 前端（vllm-rs）
-
-```bash
-./build_rust.sh          # release 构建
-./build_rust.sh --debug  # 开发用更快构建
-```
-
-产物放在 `vllm/vllm-rs`。
-
-### 方式 B — 完整从源码编译（改了 C++/CUDA kernel）
-
-来源：`docs/getting_started/installation/gpu.cuda.inc.md`（Full build）。
-
-```bash
-uv pip install -e . --torch-backend=auto
-```
-
-内存有限时限制并行任务数：
-
-```bash
-export MAX_JOBS=6
-uv pip install -e .
-```
-
-配合 ccache 加速重复构建（必须用 `--no-build-isolation`，否则 pip 每次建随机目录导致 ccache 失效）：
+方式 B 内存有限时：`export MAX_JOBS=6`；配合 ccache 加速重复构建（必须用 `--no-build-isolation`）：
 
 ```bash
 CCACHE_NOHASHDIR="true" uv pip install --no-build-isolation -e .
 ```
 
-#### 使用已有 PyTorch 安装
-
-```bash
-git clone https://github.com/vllm-project/vllm.git
-cd vllm
-python use_existing_torch.py
-uv pip install -r requirements/build/cuda.txt
-uv pip install --no-build-isolation -e .
-```
-
-#### 使用本地 cutlass
-
-```bash
-VLLM_CUTLASS_SRC_DIR=/path/to/cutlass uv pip install -e . --torch-backend=auto
-```
-
-### 方式 C — Docker 镜像构建
-
-来源：`docs/getting_started/installation/gpu.cuda.inc.md`（Build image from source）。
-
-```bash
-# 只为当前机器的 GPU 架构编译（更快）
-DOCKER_BUILDKIT=1 docker build . \
-    --target vllm-openai \
-    --tag vllm/vllm-openai \
-    --file docker/Dockerfile \
-    --build-arg torch_cuda_arch_list=""
-
-# 不改 C++ 时用预编译 wheel 加速
-DOCKER_BUILDKIT=1 docker build . \
-    --target vllm-openai \
-    --tag vllm/vllm-openai \
-    --file docker/Dockerfile \
-    --build-arg VLLM_USE_PRECOMPILED="1"
-```
-
-> Docker 构建内存大、耗时长，推荐在无 GPU 的 CI 或需要可复现产物时使用。
+方式 A 找不到 base commit 的预编译 wheel 时，设 `VLLM_PRECOMPILED_WHEEL_COMMIT=nightly` 选最近已构建的 main commit。
 
 ---
 
-## 3. 增量编译工作流（频繁改 kernel 时推荐）
+## 2. 增量编译（频繁改 kernel 时推荐）
 
-来源：`docs/contributing/incremental_build.md`。先用方式 A 做一次 editable 安装，
-再用 CMake 增量编译，避免每次跑完整 `pip install`。
-
-### 3.1 前置
+先用方式 A 做一次 editable 安装，再用 CMake 增量编译，避免每次跑完整 `pip install`：
 
 ```bash
 # 初次：预编译 wheel 做 editable 安装
 VLLM_USE_PRECOMPILED=1 uv pip install -U -e . --torch-backend=auto
 
-# 构建工具（cmake/ninja/ccache）
-uv pip install -r requirements/build/cuda.txt --torch-backend=auto
-```
-
-### 3.2 生成 CMake 配置
-
-```bash
+# 生成 CMake 配置（首次或切换分支后）
 python tools/generate_cmake_presets.py
-# 强制覆盖已有配置：
-python tools/generate_cmake_presets.py --force-overwrite
-```
 
-生成的 `CMakeUserPresets.json` 关键字段：
-
-- `CMAKE_CUDA_COMPILER`：`nvcc` 路径。
-- `CMAKE_C/CXX/CUDA_COMPILER_LAUNCHER`：设为 `ccache` 加速。
-- `VLLM_PYTHON_EXECUTABLE`：venv 里的 python。
-- `CMAKE_INSTALL_PREFIX`：`${sourceDir}`，把产物装回源码树供 editable 用。
-- `CMAKE_JOB_POOLS` / `jobs`：并行度，按机器核数/内存调整。
-
-### 3.3 构建并安装
-
-```bash
-cmake --preset release                         # 配置（首次）
-cmake --build --preset release --target install  # 编译 + 装回源码树
-```
-
-之后每次改 `csrc/` 只需重跑最后一条，仅编译变动文件。
-
-构建产物（`cmake-build-release/` 下）会包含 `_C.abi3.so`、`_moe_C.abi3.so`、
-`_flashmla_C.abi3.so`、`cumem_allocator.abi3.so` 等，由 `--target install` 拷入
-`vllm` 包目录，更新 editable 安装。
-
-### 3.4 清理重建
-
-遇到顽固错误或切换分支后：
-
-```bash
-rm -rf cmake-build-release
+# 增量编译 + 装回源码树（之后每次改完 csrc/ 只跑这条）
 cmake --preset release
 cmake --build --preset release --target install
+
+# 顽固错误或切换分支后清理重建
+rm -rf cmake-build-release && cmake --preset release && cmake --build --preset release --target install
 ```
 
 ---
 
-## 4. 改动代码后的验证流程
+## 3. 验证流程（从快到慢）
 
-按从快到慢的梯度逐级验证。仅改 Python（方式 A）时重点确认：
-**预编译库可加载** + **editable 改动生效**。
-
-### 4.1 验证梯度
-
-| 级别 | 验证什么 | 耗时 | 适用 |
-|:----:|----------|:----:|------|
-| 1 | 安装成功、库可加载 | 秒级 | 任何改动 |
-| 2 | torch.compile / Triton 正常 | 秒级 | 任何改动 |
-| 3 | editable 改动生效 | 秒级 | Python 改动 |
-| 4 | 相关单元测试 | 分钟级 | 针对性验证 |
-| 5 | 端到端小模型推理 | 分钟级 | 集成验证 |
-
-### 4.2 级别 1 — 安装与库加载
+### 级别 1 — 库加载 + editable 生效（秒级）
 
 ```bash
 python -c "import vllm; print('vllm', vllm.__version__); print(vllm.__file__)"
 ```
 
 - 不报 `undefined symbol` / `library not found` → 预编译 `.so` 加载正常。
-- `__file__` 指向你的源码目录（而非 site-packages） → editable 安装生效。
+- `__file__` 指向源码目录（而非 site-packages） → editable 安装生效。
+- 临时在 Python 文件加一行 print，再 import 一次，能看到输出 → 走的是本地源码而非缓存 wheel。
 
-### 4.3 级别 2 — torch.compile sanity check
-
-来源：`docs/usage/troubleshooting.md`（torch.compile Error）。
+### 级别 2 — torch.compile sanity check（秒级）
 
 ```bash
 python - << 'PY'
@@ -264,9 +94,7 @@ import torch
 
 @torch.compile
 def f(x):
-    x = x + 1
-    x = x * 2
-    x = x.sin()
+    x = x + 1; x = x * 2; x = x.sin()
     return x
 
 x = torch.randn(4, 4).cuda()
@@ -277,145 +105,43 @@ PY
 
 看到 `sanity check is successful!` 即 Triton/Inductor 链路正常。
 
-### 4.4 级别 3 — editable 改动生效
-
-临时在某个 Python 文件加一行打印，确认它被实际执行：
+### 级别 3 — 相关单元测试（分钟级）
 
 ```bash
-# 例如临时在 vllm/__init__.py 顶部加 print
-python -c "import vllm"   # 应看到你的输出
-```
-
-能看到 → 改动走的是本地源码而非缓存 wheel。
-
-### 4.5 级别 4 — 相关单元测试
-
-先装测试依赖（`requirements/test/cuda.in`，含 pytest、pytest-asyncio 等）：
-
-```bash
-uv pip install -r requirements/test/cuda.in
-```
-
-只跑和改动相关的测试文件（AGENTS.md 推荐格式）：
-
-```bash
+uv pip install -r requirements/test/cuda.in   # 首次装测试依赖
 .venv/bin/python -m pytest tests/<你的模块>/test_xxx.py -v
 ```
 
-常用轻量入口：
-
-```bash
-# 基础正确性
-.venv/bin/python -m pytest tests/basic_correctness/test_basic_correctness.py -v
-# 编译/图
-.venv/bin/python -m pytest tests/compile/fullgraph/test_simple.py -v
-# 配置
-.venv/bin/python -m pytest tests/config/test_config_utils.py -v
-```
-
-测试编写原则（AGENTS.md）：复用现有 `conftest.py` fixtures、一个用例只测一个行为、
-最小 setup、按行为命名、优先在现有测试文件扩展而非新建。
-
-### 4.6 级别 5 — 端到端小模型推理
-
-用极小模型做一次真实生成，确认整条链路通：
+### 级别 4 — 端到端小模型推理（分钟级）
 
 ```bash
 python - << 'PY'
 from vllm import LLM, SamplingParams
-
-# enforce_eager=True 关闭 CUDA graph，更快冷启动
 llm = LLM(model="Qwen/Qwen3-0.6B", enforce_eager=True)
 out = llm.generate(["Hello, vLLM!"], SamplingParams(max_tokens=8))
 print(out[0].outputs[0].text)
 PY
 ```
 
-`enforce_eager` 适合快速 smoke；不加则会触发 `torch.compile` + 图捕获，更贴近生产路径，
-但首次编译慢。
+`enforce_eager=True` 关闭 CUDA graph，更快冷启动，适合快速 smoke。
 
-### 4.7 速查：一条命令最小验证
-
-```bash
-source .venv/bin/activate && \
-python -c "import vllm; print('vllm', vllm.__version__, 'from', vllm.__file__)" && \
-python -m pytest tests/basic_correctness/test_basic_correctness.py -v -x
-```
-
-通过即说明：预编译库加载 OK + editable 安装 OK + 基础推理链路 OK。
+> 改动影响模型输出/精度/serving 时（AGENTS.md 要求）：搜索 `tests/evals/` 或用 `vllm bench` 跑模型评估，结果写进 PR，不要等评审人要求才跑。
 
 ---
 
-## 5. 模型/精度相关改动的额外要求
+## 4. Lint 与提交
 
-当改动影响模型输出、精度或 serving 行为时（AGENTS.md）：
-
-- 搜索 `tests/evals/` 或用 `vllm bench` 跑模型评估，结果写进 PR。
-- 不要等评审人要求才跑。
+Python 行宽上限 88 字符。文档风格用 Google-style docstrings（`Args:`/`Returns:`/`Raises:`），不要用 reST 字段。
 
 ```bash
-# 在新环境上加装评估依赖（按需）
-uv pip install -r requirements/test/cuda.in
+pre-commit run                      # staged 文件
+pre-commit run --all-files          # 全量
+pre-commit run mypy-3.12 --all-files --hook-stage manual   # mypy（按 CI 方式）
 ```
 
 ---
 
-## 6. Lint 与类型检查
-
-来源：AGENTS.md（Running linters）。Python 行宽上限 88 字符。
-
-```bash
-# 所有 pre-commit 钩子（staged 文件）
-pre-commit run
-
-# 全量
-pre-commit run --all-files
-
-# 单个钩子
-pre-commit run ruff-check --all-files
-
-# mypy（按 CI 方式）
-pre-commit run mypy-3.12 --all-files --hook-stage manual
-```
-
-文档风格用 Google-style docstrings（`Args:`/`Returns:`/`Raises:`），
-不要用 reStructuredText/Sphinx 字段（`:param:`/`:return:`/`:rtype:`）。
-
----
-
-## 7. 速查：最小完整流程（从零编译 + 验证）
-
-```bash
-# --- 1. 系统 + uv ---
-sudo apt install -y build-essential python3-dev git curl ccache
-curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env
-export CUDA_HOME=/usr/local/cuda && export PATH="${CUDA_HOME}/bin:$PATH"
-
-# --- 2. clone + venv ---
-git clone https://github.com/vllm-project/vllm.git && cd vllm
-uv venv --python 3.12 --seed && source .venv/bin/activate
-
-# --- 3. 构建依赖 ---
-uv pip install -r requirements/build/cuda.txt --torch-backend=auto
-
-# --- 4a. 仅 Python 改动（快） ---
-VLLM_USE_PRECOMPILED=1 uv pip install --editable . --torch-backend=auto
-
-# --- 4b. 或完整源码编译（含 C++/CUDA） ---
-export MAX_JOBS=6
-uv pip install -e . --torch-backend=auto
-
-# --- 5. 测试依赖 ---
-uv pip install -r requirements/test/cuda.in
-
-# --- 6. 验证 ---
-python -c "import vllm; print('vllm', vllm.__version__, 'from', vllm.__file__)"
-.venv/bin/python -m pytest tests/basic_correctness/test_basic_correctness.py -v -x
-```
-
----
-
-## 8. 常见问题速查
+## 5. 常见问题速查
 
 | 现象 | 原因 / 解决 |
 |------|------------|
@@ -426,125 +152,156 @@ python -c "import vllm; print('vllm', vllm.__version__, 'from', vllm.__file__)"
 | ccache 不命中 | 用 `--no-build-isolation` + `CCACHE_NOHASHDIR=true` |
 | CUDA driver 太旧 | 装 `cuda-compat-12-9`，设 `VLLM_ENABLE_CUDA_COMPATIBILITY=1` |
 | 非 Linux 上想开发 | `export VLLM_TARGET_DEVICE=empty` 后 `uv pip install -e .`（仅可 import，不可运行） |
-| 测试报 `OSError: Can't load the configuration of '<模型>'` | 国内无法访问 HuggingFace；见下方**第 9 章** |
-| 设了 `VLLM_USE_MODELSCOPE` 后报 `NotExistError [404] record not found` | 该测试模型（如 `hmellor/tiny-random-*`）ModelScope 无收录；跑测试改用 `HF_ENDPOINT=https://hf-mirror.com`，并 `unset VLLM_USE_MODELSCOPE` |
+| Rust `resolver setting 3 is not valid` | apt 装的旧 rustc（<1.85）不支持 `resolver="3"`（2024 edition）；装 rustup 自动读 `rust-toolchain.toml`（指定 1.95） |
+| 测试报 `OSError: Can't load the configuration of '<模型>'` | 国内无法访问 HuggingFace；见下方**第 6 章** |
+| 测试无输出/看起来卡住 | pytest 捕获了 server 子进程日志 + torch.compile 编译慢；加 `-s` 看实时日志，见**第 7 章** |
+| `LocalEntryNotFoundError: Cannot find an appropriate cached snapshot` | 设了 `HF_HUB_OFFLINE=1` 但模型未缓存；先联网下载，下完再开离线 |
+| `Error retrieving safetensors: timed out` | `try_get_safetensors_metadata`（`config.py:1097`）未分流 ModelScope，强制走 HF API 超时 ~22s；超时后 `return None` 不致命测试可继续；或 `HF_HUB_OFFLINE=1` 直接跳过 |
+| `ImportError: Using SOCKS proxy, but the 'socksio' package is not installed` | 环境残留 `all_proxy=socks5://...`，httpx2 缺 `socksio`；`unset all_proxy ALL_PROXY` 改用 HTTP 代理，或 `uv pip install socksio` |
 
 ---
 
-## 9. 国内访问 HuggingFace 方案
+## 6. 国内访问 HuggingFace 方案
 
 国内直连 huggingface.co 会被墙，跑测试时加载模型配置/权重会报
-`OSError: Can't load the configuration of '<模型>'`（例如
-`tests/basic_correctness/test_cpu_offload.py::test_tower_weight_offloading` 下载
-`Qwen/Qwen3.5-0.8B` 失败）。下面按场景给方案，跑测试用方案一即可。
+`OSError: Can't load the configuration of '<模型>'`。
 
 ### 方案一：`HF_ENDPOINT` 镜像（推荐，跑测试最省事）
 
-`huggingface_hub` 原生支持 `HF_ENDPOINT` 环境变量，指向社区镜像
-[hf-mirror.com](https://hf-mirror.com) 后，所有 `from_pretrained` /
-`snapshot_download` 自动走镜像，无需改代码、无需装额外包。
+`huggingface_hub` 原生支持 `HF_ENDPOINT`，指向社区镜像 [hf-mirror.com](https://hf-mirror.com) 后自动走镜像，无需改代码、无需装额外包。测试常用的小模型（如 `hmellor/tiny-random-*`）在 HF Hub 上有全量镜像，一定能下到。
 
 ```bash
-# 临时（单次测试）
 export HF_ENDPOINT=https://hf-mirror.com
 .venv/bin/python -m pytest tests/basic_correctness/test_cpu_offload.py -v
-
-# 持久化（写进 ~/.zshrc 或 ~/.bashrc）
-echo 'export HF_ENDPOINT=https://hf-mirror.com' >> ~/.zshrc
-source ~/.zshrc
 ```
 
-为什么最适合跑测试：测试常用的小模型（如 `hmellor/tiny-random-LlamaForCausalLM`）
-在 HF Hub 上有，hf-mirror 做了全量镜像，一定能下到；而 ModelScope 不一定收录这类
-测试用随机模型。
+下载完后模型缓存到 `~/.cache/huggingface`，之后可断网跑：`export HF_HUB_OFFLINE=1`。
 
-**代理与镜像二选一，不要混用**：若同时设了 `http_proxy`/`https_proxy`/`all_proxy`
-和 `HF_ENDPOINT=https://hf-mirror.com`，发往国内镜像的请求会被代理绕到境外节点，
-反而变慢甚至失败。用镜像就先取消代理；用代理就别设 `HF_ENDPOINT`，直接访问 HF 官方。
+### 方案二：ModelScope（适合生产用真实国产模型）
 
-```bash
-# 镜像路线（推荐跑测试）：取消代理
-unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
-export HF_ENDPOINT=https://hf-mirror.com
-# 代理路线：保留代理，不设镜像
-unset HF_ENDPOINT
-export https_proxy=http://192.168.3.10:7890 http_proxy=http://192.168.3.10:7890 all_proxy=socks5://192.168.3.10:7890
-```
-
-### 方案二：项目内置 ModelScope（适合生产用真实国产模型）
-
-vLLM 在多处做了 ModelScope 适配（`vllm/envs.py`、
-`vllm/model_executor/model_loader/weight_utils.py`、
-`vllm/transformers_utils/config.py`、`vllm/transformers_utils/repo_utils.py`），
-开启后权重下载、config 加载、tokenizer 都走魔搭社区：
+vLLM 在多处做了 ModelScope 适配（`vllm/envs.py`、`weight_utils.py`、`config.py`、`repo_utils.py`），开启后权重下载、config 加载、tokenizer 都走魔搭社区。Qwen 系模型在 ModelScope 必有镜像。
 
 ```bash
 uv pip install modelscope
 export VLLM_USE_MODELSCOPE=True   # 注意是 True（见 envs.py 的解析）
 ```
 
-> 注意：ModelScope 上以国产/热门模型为主，像 `Qwen/Qwen3.5-0.8B` 这类 Qwen 模型大概率有
-> 镜像，但 `hmellor/tiny-random-*` 这种测试模型**不一定有**。跑测试优先用方案一。
+> 注意：ModelScope 上以国产/热门模型为主，`hmellor/tiny-random-*` 这种测试模型**不一定有**。跑测试优先用方案一。
 
-### 方案三：先镜像下载到本地缓存，再离线跑
+### 代理路线：HTTP 代理直连 HF 官方（已验证绕境外成功）
 
-第一次用方案一下载完后，模型已缓存到 `~/.cache/huggingface`。之后断网也能跑：
-
-```bash
-export HF_ENDPOINT=https://hf-mirror.com   # 第一次：联网下载
-.venv/bin/python -m pytest tests/basic_correctness/test_cpu_offload.py -v
-
-# 之后：纯离线，不再联网
-export HF_HUB_OFFLINE=1
-.venv/bin/python -m pytest tests/basic_correctness/test_cpu_offload.py -v
-```
-
-### 方案四：直接用本地路径
-
-已手动下好模型时，把测试里的 `model="<repo>"` 换成本地绝对路径，或指向本地缓存目录：
+**代理与镜像二选一，不要混用**：若同时设了代理和 `HF_ENDPOINT`，发往国内镜像的请求会被代理绕到境外，反而变慢甚至失败。
 
 ```bash
-export HF_HOME=/path/to/local/hf/cache
-# 或在 LLM(model=...) 直接传本地目录
-```
-
-### 直接修法（针对本测试）
-
-```bash
+# 镜像路线（推荐跑测试）：取消代理
+unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 export HF_ENDPOINT=https://hf-mirror.com
-.venv/bin/python -m pytest \
-    tests/basic_correctness/test_cpu_offload.py::test_tower_weight_offloading \
-    -v
+
+# 代理路线：只用 HTTP 代理，不设镜像，直连 HF 官方
+unset HF_ENDPOINT
+export http_proxy=http://192.168.3.10:7890 https_proxy=http://192.168.3.10:7890
+# 注意：不要用 all_proxy=socks5://...（见下方踩坑）
 ```
 
-镜像偶发超时再加并发与重试控制：
+> **踩坑：socks5 代理导致 ImportError（已验证）**
+>
+> 代理路线最初用了 `all_proxy=socks5://192.168.3.10:7890`，结果测试在 1.63s 内快速失败，报
+> `ImportError: Using SOCKS proxy, but the 'socksio' package is not installed`。原因：新版
+> `huggingface_hub` 底层用 `httpx2`，其 `_init_proxy_transport` 检测到 socks5 scheme 时尝试
+> `import socksio`，该包未安装即抛 `ImportError`，被 transformers 转为
+> `OSError: Can't load the configuration`。
+>
+> **解法**：代理路线只用 `http_proxy`/`https_proxy`（HTTP 代理），`unset all_proxy ALL_PROXY`
+> 清掉 socks5。改用纯 HTTP 代理后，代理直连 HF 官方（`huggingface.co`）成功绕境外，
+> 模型下载与测试均通过。若必须用 socks5 代理，则 `uv pip install socksio` 补依赖。
+
+### 实战：`test_tower_weight_offloading`（已验证通过）
+
+该测试用 `vllm_runner`（直接 `LLM` 类）+ `Qwen/Qwen3.5-0.8B`（1.6G 真实权重），需先下载模型再跑：
 
 ```bash
-export HF_ENDPOINT=https://hf-mirror.com
-export HF_HUB_DOWNLOAD_TIMEOUT=60
-.venv/bin/python -m pytest tests/basic_correctness/test_cpu_offload.py -v \
-    --timeout=300
-```
+# 1. 用 ModelScope 下载模型（Qwen 是阿里自家模型，ModelScope 必有）
+uv pip install modelscope
+.venv/bin/python -c \
+    "from modelscope import snapshot_download; print(snapshot_download('Qwen/Qwen3.5-0.8B'))"
+# 验证：du -sh ~/.cache/modelscope/models/Qwen--Qwen3.5-0.8B/ 应约 1.7G
 
-**小结**：跑测试 → 方案一（`HF_ENDPOINT=https://hf-mirror.com`，零成本全量镜像）；
-跑国产真实模型生产推理 → 可叠加方案二（`VLLM_USE_MODELSCOPE=True`）。
-两者可同时设，互不冲突。
-
----
-
-国内环境跑 Qwen/Qwen3.5-0.8B 测试命令
-
-```
+# 2. 跑测试（模型走 ModelScope 缓存 + HF 镜像兜底）
 unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
 unset HF_HUB_OFFLINE
 export VLLM_USE_MODELSCOPE=True
 export HF_ENDPOINT=https://hf-mirror.com
-
-# 跑测试
 .venv/bin/python -m pytest \
     "tests/basic_correctness/cpu_offload/test_cpu_offload.py::test_tower_weight_offloading[True]" \
-    -v -s --timeout=600 
+    -v -s --timeout=600
 ```
+
+> **已知超时（不致命）**：`try_get_safetensors_metadata`（`config.py:1097`）未检查
+> `VLLM_USE_MODELSCOPE`，仍走 HF API 获取权重元数据，国内会超时 ~22s。但该函数
+> `except Exception: return None` 兜底，超时后返回 `None` 继续运行，**不影响测试通过**。
+> 想跳过这 22s 可加 `export HF_HUB_OFFLINE=1`（模型已在 ModelScope 缓存，不受影响）。
+
+---
+
+## 7. 测试运行与卡死排查
+
+### 为什么慢
+
+vLLM 的基础正确性测试（如 `tests/basic_correctness/` 下的 `compare_two_settings`）不是直接调 `LLM` 类，而是用 `RemoteOpenAIServer` 启动**真实的 `vllm serve` 子进程**：每组参数启 2 个 server（baseline + 待测），每个含 spawn worker → `torch.compile` 编译 → CUDA graph 捕获 → 健康检查。参数组合多时最多 16 次 server 启动。
+
+测试默认用 **dummy 权重**（`VLLM_TEST_FORCE_LOAD_FORMAT`），所以卡住和模型大小无关，卡在 **torch.compile 编译**（小模型首次也要 1–3 分钟/次）。server 日志透传到 `sys.stdout`，但 **pytest 默认捕获输出**，不加 `-s` 看不到任何日志 → 看起来像卡死。
+
+### 排查四步
+
+**第一步：加 `-s` 看实时日志（最关键）**
+
+```bash
+export HF_HUB_OFFLINE=1            # 模型已下好，离线复用
+export VLLM_LOGGING_LEVEL=INFO     # server 日志更详细
+.venv/bin/python -m pytest tests/basic_correctness/cpu_offload/test_cpu_offload.py \
+    -v -s --timeout=600
+```
+
+日志在动 = 没卡死，是正常编译。
+
+**第二步：先 collect 看准确用例名，再单条精准运行**
+
+`-k` 表达式容易写错（parametrize 的 id 用参数值如 `False-False`，不是参数名），常导致全被 deselect。先 collect：
+
+```bash
+.venv/bin/python -m pytest tests/basic_correctness/cpu_offload/test_cpu_offload.py \
+    --collect-only -q
+```
+
+挑一个用**全名**跑（中括号必须用引号包裹）：
+
+```bash
+.venv/bin/python -m pytest \
+    "tests/basic_correctness/cpu_offload/test_cpu_offload.py::test_cpu_offload[False-False]" \
+    -v -s --timeout=600
+```
+
+**第三步：另开终端盯 GPU**
+
+```bash
+watch -n1 nvidia-smi
+```
+
+- 显存占用 + GPU util 波动 → 正在编译，没卡死，耐心等。
+- 显存占满但 util 0 → 上个 server 的 worker 没退出，卡在 `_wait_for_gpu_memory_release`；`pkill -9 vllm` 清残留。
+- 显存一直 0 → server 没起来，看 `-s` 日志报错。
+
+**第四步：卡住位置对照**
+
+| 卡在（看 `-s` 日志） | 原因 | 对策 |
+|----------------------|------|------|
+| `Compiling...` 很久 | torch.compile 首次编译 | 正常，首次 1–3 分钟/次 |
+| `Capturing CUDA graph` | 图捕获慢 | 该组合没加 `--enforce-eager`；先跑带 enforce_eager 的组合 |
+| `Server failed to start in time` | 健康检查超时 | 查端口/GPU，加大 `max_wait_seconds` |
+| GPU 内存释放等待 | 上个 server 没退出 | `pkill -9 vllm` 后重跑 |
+| `subprocess.run` 跑 bench 无输出 | `capture_output=True` 吞了输出 | 直接跑 `vllm bench startup` 命令绕开 |
+
+---
 
 ## 参考文件索引
 
@@ -557,5 +314,5 @@ export HF_ENDPOINT=https://hf-mirror.com
 | `requirements/test/cuda.in` | 测试依赖 |
 | `AGENTS.md` | 开发工作流、测试规范、lint、提交规范 |
 | `tools/generate_cmake_presets.py` | CMakeUserPresets 生成脚本 |
-| `build_rust.sh` | Rust 前端构建 |
-| `use_existing_torch.py` | 复用已有 PyTorch |
+| `build_rust.sh` | Rust 前端构建（`./build_rust.sh` 或 `--debug`） |
+| `use_existing_torch.py` | 复用已有 PyTorch 安装 |
