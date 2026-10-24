@@ -532,6 +532,20 @@ export HF_HUB_DOWNLOAD_TIMEOUT=60
 
 ---
 
+国内环境跑 Qwen/Qwen3.5-0.8B 测试命令
+
+```
+unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
+unset HF_HUB_OFFLINE
+export VLLM_USE_MODELSCOPE=True
+export HF_ENDPOINT=https://hf-mirror.com
+
+# 跑测试
+.venv/bin/python -m pytest \
+    "tests/basic_correctness/cpu_offload/test_cpu_offload.py::test_tower_weight_offloading[True]" \
+    -v -s --timeout=600 
+```
+
 ## 参考文件索引
 
 | 文件 | 内容 |
