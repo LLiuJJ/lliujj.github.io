@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XgoDuck RL — 代码实现、数学原理与训练过程分析</title>
+<script>
+  MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)']],
+      displayMath: [['\\[', '\\]']]
+    },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #f5f3ed;
+    --card-bg: #ffffff;
+    --card-dark: #292e23;
+    --card-border: #e5e2da;
+    --text: #3a3b37;
+    --text-bright: #242521;
+    --text-muted: #8a8c84;
+    --accent: #8a7a22;
+    --accent-yellow: #ffd64a;
+    --accent-2: #c45a3a;
+    --accent-3: #4a8a2a;
+    --accent-4: #3a6a8a;
+    --accent-5: #b56a2a;
+    --code-bg: #f8f6f0;
+    --table-stripe: #f8f6f0;
+    --table-header: #ede9e0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "system-ui", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    font-size: 16px;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #ede9e0 0%, #f5f3ed 100%);
+    border-bottom: 2px solid var(--card-border);
+    padding: 60px 40px 48px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 2.4em;
+    color: var(--text-bright);
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+    font-weight: 800;
+  }
+  .hero .subtitle {
+    font-size: 1.15em;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .hero .meta {
+    margin-top: 20px;
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero .meta span {
+    background: var(--accent-yellow);
+    color: var(--text-bright);
+    border: none;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px 32px;
+    margin-bottom: 40px;
+  }
+  .toc h3 {
+    color: var(--accent);
+    font-size: 1.1em;
+    margin-bottom: 12px;
+  }
+  .toc ol {
+    list-style: none;
+    counter-reset: toc;
+    columns: 2;
+    column-gap: 40px;
+  }
+  .toc li {
+    counter-increment: toc;
+    padding: 4px 0;
+    break-inside: avoid;
+  }
+  .toc li::before {
+    content: counter(toc) ". ";
+    color: var(--accent-2);
+    font-weight: 700;
+  }
+  .toc a {
+    color: var(--text);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .toc a:hover { color: var(--accent); }
+
+  /* ── Section ── */
+  section {
+    margin-bottom: 48px;
+    scroll-margin-top: 20px;
+  }
+  h2 {
+    font-size: 1.6em;
+    color: var(--text-bright);
+    border-bottom: 2px solid var(--accent-yellow);
+    padding-bottom: 8px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 750;
+  }
+  h2 .num {
+    background: var(--accent-yellow);
+    color: var(--text-bright);
+    font-size: 0.65em;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+  }
+  h3 {
+    font-size: 1.25em;
+    color: var(--accent);
+    margin-top: 28px;
+    margin-bottom: 12px;
+    font-weight: 550;
+  }
+  h4 {
+    font-size: 1.1em;
+    color: var(--accent-5);
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+  p { margin-bottom: 12px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .mini-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 20px;
+  }
+  .mini-card h4 {
+    margin-top: 0;
+    color: var(--accent);
+  }
+  .mini-card.green { border-left-color: var(--accent-3); }
+  .mini-card.green h4 { color: var(--accent-3); }
+  .mini-card.orange { border-left-color: var(--accent-5); }
+  .mini-card.orange h4 { color: var(--accent-5); }
+  .mini-card.purple { border-left-color: var(--accent-4); }
+  .mini-card.purple h4 { color: var(--accent-4); }
+  .mini-card.red { border-left-color: var(--accent-2); }
+  .mini-card.red h4 { color: var(--accent-2); }
+
+  /* ── Table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+  }
+  th {
+    background: var(--table-header);
+    color: var(--accent);
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+    border-bottom: 2px solid var(--accent-yellow);
+  }
+  td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  tbody tr:nth-child(even) {
+    background: var(--table-stripe);
+  }
+  tbody tr:hover {
+    background: #ede9e0;
+  }
+  td code, p code {
+    background: var(--code-bg);
+    color: var(--accent-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.88em;
+  }
+
+  /* ── Math block ── */
+  .math-block {
+    background: var(--code-bg);
+    border: 1px solid var(--card-border);
+    border-left: 4px solid var(--accent-4);
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .math-label {
+    font-size: 0.8em;
+    color: var(--accent-4);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  /* ── Callout ── */
+  .callout {
+    border-left: 4px solid var(--accent-yellow);
+    background: rgba(255, 214, 74, 0.12);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  .callout-title {
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .callout.warning {
+    border-left-color: var(--accent-2);
+    background: rgba(196, 90, 58, 0.08);
+  }
+  .callout.warning .callout-title { color: var(--accent-2); }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+  }
+  .badge.blue { background: rgba(58,106,138,0.15); color: var(--accent-4); }
+  .badge.green { background: rgba(74,138,42,0.15); color: var(--accent-3); }
+  .badge.orange { background: rgba(181,106,42,0.15); color: var(--accent-5); }
+  .badge.purple { background: rgba(58,106,138,0.15); color: var(--accent-4); }
+  .badge.red { background: rgba(196,90,58,0.15); color: var(--accent-2); }
+
+  /* ── Flow ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    flex: 1;
+    min-width: 140px;
+    text-align: center;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 12px 8px;
+    font-size: 0.82em;
+    position: relative;
+  }
+  .flow-step .icon {
+    font-size: 1.4em;
+    margin-bottom: 4px;
+    color: var(--accent-yellow);
+  }
+  .flow-step .label {
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.85em;
+  }
+  .flow-arrow {
+    color: var(--accent-2);
+    font-size: 1.3em;
+    padding: 0 6px;
+  }
+
+  /* ── Code ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  pre code {
+    color: var(--text);
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.85em;
+    white-space: pre;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 32px;
+    border-top: 1px solid var(--card-border);
+    color: var(--text-muted);
+    font-size: 0.85em;
+  }
+
+  ul, ol { margin-left: 24px; margin-bottom: 12px; }
+  li { margin-bottom: 4px; }
+  strong { color: var(--text-bright); }
+  em { color: var(--accent-3); }
+
+  @media (max-width: 768px) {
+    .toc ol { columns: 1; }
+    .hero h1 { font-size: 1.6em; }
+    .flow { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+  }
+
+  /* ── 3D NN Viz ── */
+  #nn3d-wrapper {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  #nn3d-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--table-header);
+    border-bottom: 1px solid var(--card-border);
+  }
+  #nn3d-title {
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 0.95em;
+  }
+  .nn3d-btn {
+    background: var(--accent-yellow);
+    color: var(--text-bright);
+    border: none;
+    padding: 4px 14px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .nn3d-btn:hover { opacity: 0.82; }
+  #nn3d-container {
+    width: 100%;
+    height: 460px;
+    position: relative;
+  }
+  #nn3d-container canvas { display: block; }
+  #nn3d-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 10px 20px;
+    background: var(--code-bg);
+    border-top: 1px solid var(--card-border);
+    font-size: 0.82em;
+  }
+  .nn3d-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+  }
+  .nn3d-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  #nn3d-hint {
+    text-align: center;
+    padding: 8px;
+    color: var(--text-muted);
+    font-size: 0.8em;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════ HERO ════════ -->
+<div class="hero">
+  <h1>XgoDuck RL</h1>
+  <div class="subtitle">代码实现、数学原理与训练过程分析</div>
+  <div class="meta">
+    <span>MuJoCo Warp</span>
+    <span>PPO · rsl_rl</span>
+    <span>BAM 执行器</span>
+    <span>ONNX 部署</span>
+    <span>14-DOF 双足</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ════════ TOC ════════ -->
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#s1">系统概览</a></li>
+    <li><a href="#s2">机器人模型数学原理</a></li>
+    <li><a href="#s3">MDP 定义</a></li>
+    <li><a href="#s4">奖励函数数学设计</a></li>
+    <li><a href="#s5">域随机化（Sim2Real）</a></li>
+    <li><a href="#s6">训练过程</a></li>
+    <li><a href="#s7">部署流程</a></li>
+    <li><a href="#s8">核心设计理念总结</a></li>
+    <li><a href="#s9">大白话版本：模型架构、输入输出与训练</a></li>
+  </ol>
+</div>
+
+<!-- ════════ 1. 系统概览 ════════ -->
+<section id="s1">
+  <h2><span class="num">1</span>系统概览</h2>
+  <p>XgoDuck 是一个小型双足机器人（几何/惯量不同于上游 MicroDuck），基于 <strong>mjlab</strong>（MuJoCo Warp GPU 并行物理引擎）构建强化学习环境，使用 <strong>PPO</strong> 算法训练运动技能策略，导出为 <strong>ONNX</strong> 部署到真机。</p>
+
+  <div class="card-grid">
+    <div class="mini-card">
+      <h4>物理仿真</h4>
+      <p>MuJoCo（mujoco-warp 1.12.0），GPU 并行 <strong>4096</strong> 环境，5ms 物理步长 × 5 decimation = 50Hz 控制频率</p>
+    </div>
+    <div class="mini-card green">
+      <h4>RL 框架</h4>
+      <p>rsl_rl PPO 实现，Actor-Critic 架构，自适应学习率，GAE 优势估计</p>
+    </div>
+    <div class="mini-card orange">
+      <h4>执行器模型</h4>
+      <p>BAM（Better Actuator Models），HLS1910/STS3215 舵机电磁-摩擦辨识，非理想 PD</p>
+    </div>
+    <div class="mini-card purple">
+      <h4>关节构型</h4>
+      <p>14 自由度（每腿 5 + 头部 4），位置控制，2 个被动下颌连杆排除</p>
+    </div>
+  </div>
+
+  <h3>端到端流程</h3>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="icon">🤖</div>
+      <div class="label">XgoDuck 真机</div>
+      <div>14-DOF 双足</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">📐</div>
+      <div class="label">MJCF 建模</div>
+      <div>XML + 网格</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">⚙️</div>
+      <div class="label">BAM 执行器</div>
+      <div>电磁+摩擦</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🎯</div>
+      <div class="label">RL 环境</div>
+      <div>4096 envs</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🧠</div>
+      <div class="label">PPO 训练</div>
+      <div>50K iters</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">📦</div>
+      <div class="label">ONNX 导出</div>
+      <div>归一化烘焙</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🚀</div>
+      <div class="label">真机部署</div>
+      <div>50Hz 推理</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 2. 机器人模型 ════════ -->
+<section id="s2">
+  <h2><span class="num">2</span>机器人模型数学原理</h2>
+
+  <h3>2.1 运动学构型</h3>
+  <p>XgoDuck 共 <strong>14 个可控关节</strong>（另有 2 个被动下颌连杆 <code>passive_*</code> 排除在观测外）：</p>
+
+  <table>
+    <thead>
+      <tr><th>序号</th><th>关节</th><th>序号</th><th>关节</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0–4</td><td>左腿: hip_yaw, hip_roll, hip_pitch, knee, ankle</td><td>9–13</td><td>右腿: hip_yaw, hip_roll, hip_pitch, knee, ankle</td></tr>
+      <tr><td>5–8</td><td>头部: neck_pitch, head_pitch, head_yaw, head_roll</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card">
+    <h4>初始姿态 (HOME)</h4>
+    <p>髋俯仰/踝关节 <strong>±22°</strong>（Walk 变体 ±24°），髋翻滚 ±5°，颈部/头部俯仰各 20°，使脚底恰好高于地面 1mm。站立躯干高度 <code>XGODUCK_STAND_Z = 0.139158 m</code>。</p>
+  </div>
+
+  <h4>碰撞分组策略</h4>
+  <table>
+    <thead><tr><th>碰撞体</th><th>contype</th><th>conaffinity</th><th>condim</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>*_foot_collision</code></td><td>1</td><td>0</td><td>3</td><td>仅与地面接触，带摩擦锥</td></tr>
+      <tr><td><code>trunk_collision</code> / <code>head_collision</code></td><td>3</td><td>2</td><td>1</td><td>与地面和彼此碰撞</td></tr>
+      <tr><td>其他 <code>*_collision</code></td><td>1</td><td>0</td><td>1</td><td>仅地面，无机器人间碰撞</td></tr>
+    </tbody>
+  </table>
+  <p>Walk 模型仅脚部有碰撞体；Standup 模型全身有碰撞网格（用于起立/翻滚等全身接触场景）。</p>
+
+  <h3>2.2 BAM 执行器数学模型</h3>
+  <p>BAM 是 Rhoban 开发的执行器物理模型，将真实舵机的<strong>电磁学</strong>和<strong>摩擦学</strong>嵌入仿真，而非简单使用 PD 控制器。</p>
+
+  <h4>HLS1910 辨识参数</h4>
+  <table>
+    <thead><tr><th>参数</th><th>含义</th><th>值</th></tr></thead>
+    <tbody>
+      <tr><td><code>kt</code></td><td>电机转矩常数</td><td>0.624 N·m/A</td></tr>
+      <tr><td><code>R</code></td><td>绕组电阻</td><td>4.91 Ω</td></tr>
+      <tr><td><code>armature</code></td><td>转子惯量</td><td>0.00178 kg·m²</td></tr>
+      <tr><td><code>friction_base</code></td><td>库仑摩擦基值</td><td>0.0158</td></tr>
+      <tr><td><code>friction_stribeck</code></td><td>Stribeck 摩擦系数</td><td>0.0096</td></tr>
+      <tr><td><code>friction_viscous</code></td><td>粘性摩擦</td><td>0.00031</td></tr>
+      <tr><td><code>load_friction_*</code></td><td>负载相关摩擦（线性/二次）</td><td>多项</td></tr>
+      <tr><td><code>max_velocity</code></td><td>100（禁用固件目标限速）</td><td>—</td></tr>
+      <tr><td><code>command_delay</code></td><td>6ms（由 mjlab delay buffer 覆盖）</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <h4>核心方程（BAM <code>compute()</code> 流程）</h4>
+
+  <div class="math-block">
+    <div class="math-label">步骤 1：电压计算（PWM 占空比 → 端电压 → 减反电动势）</div>
+    \[ V_{emf} = k_t \cdot \dot{\theta}, \quad I = \frac{V - V_{emf}}{R} \]
+  </div>
+
+  <div class="math-block">
+    <div class="math-label">步骤 2：电流 → 转矩</div>
+    \[ \tau_{motor} = k_t \cdot I = k_t \cdot \frac{V - k_t \dot{\theta}}{R} \]
+  </div>
+
+  <div class="math-block">
+    <div class="math-label">步骤 3：摩擦预算（_compute_friction_budget）</div>
+    \[ F_{friction} = \underbrace{F_{coulomb}}_{\text{库仑}} + \underbrace{F_{stribeck}(v)}_{\text{Stribeck}} + \underbrace{F_{load}(\tau_{ext})}_{\text{负载相关}} + \underbrace{F_{viscous} \cdot v}_{\text{粘性}} \]
+  </div>
+  <p>其中 Stribeck 项随速度衰减，模拟静动摩擦转换；负载相关项捕捉齿轮箱变形带来的摩擦。<code>load_friction_motor_quad</code> 和 <code>load_friction_external_quad</code> 提供二次项精度。</p>
+
+  <div class="math-block">
+    <div class="math-label">步骤 4：固件 PD 闭环</div>
+    \[ \tau_{cmd} = k_{p,fw} \cdot (q_{target} - q_{measured}) \]
+    <p style="margin-top:8px"><code>kp_fw=5</code>，读取编码器位置作反馈，通过 <code>q_target_smooth</code> 实现目标限速（<code>max_velocity=100</code> 禁用此限速，速度由电压+反电动势决定）。</p>
+  </div>
+
+  <h4>Sim2Real 关键扩展</h4>
+  <div class="card-grid">
+    <div class="mini-card red">
+      <h4>FrictionDRBamActuator</h4>
+      <p>在 <code>_compute_friction_budget</code> 中乘以每环境 <code>friction_scale</code>，实现摩擦量级的域随机化。因为 BAM 下 MuJoCo 的 <code>dof_frictionloss</code> 被置零，标准 DR 失效——这是 BAM 原生路径。</p>
+    </div>
+    <div class="mini-card purple">
+      <h4>BacklashEncoderBamActuator</h4>
+      <p>编码器穿过齿隙读取——固件 PD 反馈的是 <code>qpos[servo] + qpos[backlash]</code>，仿真真实舵机编码器在齿隙输出侧的行为。串联齿隙铰链模型 <code>passive_*_backlash</code>。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 3. MDP ════════ -->
+<section id="s3">
+  <h2><span class="num">3</span>MDP 定义</h2>
+
+  <h3>3.1 观测空间（61 维 Actor）</h3>
+  <p>观测向量按项插入顺序拼接，Actor 与 Critic 信息不对称：</p>
+
+  <table>
+    <thead><tr><th>维度</th><th>内容</th><th>Actor</th><th>Critic</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>[0:3]</td><td><code>base_ang_vel</code></td><td>✓</td><td>✓</td><td>机体角速度 (roll, pitch, yaw)，IMU 体坐标</td></tr>
+      <tr><td>[3:6]</td><td><code>projected_gravity</code></td><td>✓</td><td>✓</td><td>投影重力 (gx, gy, gz)，体坐标</td></tr>
+      <tr><td>[6:20]</td><td><code>joint_pos_rel</code></td><td>✓</td><td>✓</td><td>14 关节位置（相对默认姿态），含编码器偏置</td></tr>
+      <tr><td>[20:34]</td><td><code>joint_vel_rel</code></td><td>✓</td><td>✓</td><td>14 关节速度，1 步延迟（模拟 Dynamixel 移动平均）</td></tr>
+      <tr><td>[34:48]</td><td><code>last_action</code></td><td>✓</td><td>✓</td><td>14 维上一步动作</td></tr>
+      <tr><td>[48:51]</td><td><code>twist command</code></td><td>✓</td><td>✓</td><td>速度指令 (lin_x, lin_y, ang_z)</td></tr>
+      <tr><td>[51:55]</td><td><code>head command</code></td><td>✓</td><td>✓</td><td>头部姿态指令 4D</td></tr>
+      <tr><td>[55:61]</td><td><code>body command</code></td><td>✓</td><td>✓</td><td>躯干位姿指令 6D</td></tr>
+      <tr><td>—</td><td><code>base_lin_vel</code></td><td>✗</td><td><span class="badge purple">特权</span></td><td>真实线速度（策略不可见）</td></tr>
+      <tr><td>—</td><td><code>foot_contact</code> 等</td><td>✗</td><td><span class="badge purple">特权</span></td><td>脚步接触力/离地高度传感器数据</td></tr>
+    </tbody>
+  </table>
+
+  <h4>观测处理关键设计</h4>
+  <table>
+    <thead><tr><th>设计</th><th>机制</th><th>目的</th></tr></thead>
+    <tbody>
+      <tr><td>IMU 安装误差 DR</td><td>每环境固定旋转 ≤6°（零中心随机轴），旋转角速度和投影重力</td><td>模拟 IMU 装配误差</td></tr>
+      <tr><td>编码器偏置 DR</td><td>每环境 ±0.86° 固定偏置，仅 Actor 可见</td><td>模拟编码器校准误差</td></tr>
+      <tr><td>观测噪声</td><td>角速度 ±0.03, 重力 ±0.01, 关节位置 ±0.001, 速度 ±0.25</td><td>传感器噪声建模</td></tr>
+      <tr><td>延迟模拟</td><td>角速度/重力 0–1 步延迟(≈20ms)，关节速度 1 步延迟</td><td>匹配真实通信延迟</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.2 动作空间（14 维）</h3>
+  <p><code>JointPositionActionCfg</code>，<code>scale=1.0</code>：策略输出 14 维关节位置偏移量，叠加到默认姿态偏移上。StandUp 任务使用 <code>FreezeThenJointPositionActionCfg</code>——前 2 秒冻结动作（让机器人在掉落后稳定），然后放开控制。</p>
+
+  <h3>3.3 指令系统</h3>
+  <div class="card">
+    <h4>① 速度指令 <code>twist</code></h4>
+    <p>均匀采样：\(v_x \in [-0.4, 0.4]\) m/s, \(v_y \in [-0.3, 0.3]\) m/s, \(\omega_z \in [-1.0, 1.0]\) rad/s</p>
+    <ul>
+      <li><span class="badge blue">2%</span> → <span class="badge blue">25%</span> 站立环境（零指令），课程渐进</li>
+      <li><span class="badge green">15%</span> 原地转弯（\(v=0, |\omega| \in [0.4, 1.0]\)）</li>
+      <li><span class="badge orange">15%</span> 后退环境（\(v_x \in [-0.2, -0.1]\)）</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>② 头部姿态指令 <code>head_pose</code></h4>
+    <p>4D 从 HOME 的偏移量 [neck_pitch, head_pitch, head_yaw, head_roll]，2–5s 重采样。课程分 5 阶段从 ±5% 扩展到各关节机械极限：</p>
+    <ul>
+      <li>neck_pitch / head_pitch: ±1.10 rad</li>
+      <li>head_yaw: ±1.40 rad</li>
+      <li>head_roll: ±0.31 rad</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>③ 躯干位姿指令 <code>body_pose</code></h4>
+    <p>6D 偏移量 [x, y, z, roll, pitch, yaw]。在 Velocity 任务中权重为 <strong>0</strong>（保持输入神经元活跃但不主导），Standup 任务提升权重。</p>
+  </div>
+</section>
+
+<!-- ════════ 4. 奖励函数 ════════ -->
+<section id="s4">
+  <h2><span class="num">4</span>奖励函数数学设计</h2>
+  <p>Velocity 任务的总奖励为多项加权求和，采用<strong>高斯核</strong>形式 \(\exp(-e^2/\sigma^2)\) 保证梯度始终非零。</p>
+
+  <h3>4.1 速度跟踪（核心目标）</h3>
+  <div class="math-block">
+    \[ r_{track} = w_1 \cdot \exp\!\left(-\frac{\|\mathbf{v}_{cmd} - \mathbf{v}_{actual}\|^2}{\sigma_{lin}^2}\right) + w_2 \cdot \exp\!\left(-\frac{(\omega_{cmd} - \omega_{actual})^2}{\sigma_{ang}^2}\right) \]
+  </div>
+  <table>
+    <thead><tr><th>项</th><th>权重</th><th>σ</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>线速度跟踪</td><td><code>w₁ = 3.0</code> (XgoDuck)</td><td>√0.25</td><td>误差为 σ 时奖励 = 1/e ≈ 0.37</td></tr>
+      <tr><td>角速度跟踪</td><td><code>w₂ = 2.0</code></td><td>√0.5</td><td>角速度容差更大（转弯难度高）</td></tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 姿态保持</h3>
+  <div class="math-block">
+    \[ r_{pose} = \sum_{j \in legs} \exp\!\left(-\frac{(q_j - q_j^{default})^2}{\sigma_j^2}\right) \cdot \text{speed\_gate}(\mathbf{v}) \]
+  </div>
+  <p>按速度分级 σ（standing / walking / running），低速时更紧、高速时更松。XgoDuck 调高权重至 <strong>1.3</strong>，并收紧 hip_yaw 的 σ（standing 0.05, walking 0.15, running 0.25）。</p>
+
+  <h3>4.3 头部姿态跟踪</h3>
+  <div class="math-block">
+    <div class="math-label">均值形式（非平方和）保证单关节偏差不杀死整体梯度</div>
+    \[ r_{head} = \frac{1}{4}\sum_{j=1}^{4} \exp\!\left(-\frac{(e_j)^2}{\sigma^2}\right), \quad \sigma = 0.5, \quad w = 2.0 \]
+  </div>
+
+  <h3>4.4 头部 DC 偏置惩罚（关键设计）</h3>
+  <div class="callout">
+    <div class="callout-title">设计原理</div>
+    <p>280g 头部占机器人 38% 质量，行走时不可避免振荡。瞬时紧容差会<strong>永久惩罚行走</strong>（不可逃避），导致策略放弃走路。但 DC 偏置（重力下垂）是<strong>可逃避的</strong>——策略可偏置颈部指令抵消重力。EMA 滤波让振荡抵消，只惩罚偏置。</p>
+  </div>
+  <div class="math-block">
+    \[ r_{bias} = -w \cdot \frac{1}{4}\sum_j \left|\text{EMA}(e_j,\; \tau = 1\text{s})\right| \]
+  </div>
+  <p>课程从 iter 600 开始：<code>w: 0 → 1.0 → 2.0 → 3.0</code>。在 weight 3.0 时，15° 残余偏置每步代价 0.79，2° 偏置代价 0.10——精确地价格可改善的误差。</p>
+
+  <h3>4.5 其他奖励项总览</h3>
+  <table>
+    <thead><tr><th>奖励</th><th>权重</th><th>公式/说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>upright</code></td><td><span class="badge green">+2.0</span></td><td>\(\exp(-\theta_{tilt}^2 / 0.05)\)，强惩罚躯干倾斜</td></tr>
+      <tr><td><code>air_time</code></td><td><span class="badge green">+3.0</span></td><td>摆动相时长在 [0.125, 0.3]s 窗口内奖励</td></tr>
+      <tr><td><code>foot_swing_height</code></td><td><span class="badge red">-5.0</span></td><td>L1 惩罚摆动脚高偏离目标 0.02m</td></tr>
+      <tr><td><code>foot_clearance</code></td><td>—</td><td>惩罚拖步</td></tr>
+      <tr><td><code>foot_slip</code></td><td><span class="badge red">-0.1</span></td><td>弱惩罚脚底滑动（弱因转弯需枢轴转动）</td></tr>
+      <tr><td><code>body_ang_vel</code></td><td><span class="badge red">-0.05</span></td><td>惩罚躯干旋转</td></tr>
+      <tr><td><code>angular_momentum</code></td><td><span class="badge red">-0.02</span></td><td>惩罚全身角动量（稳定性）</td></tr>
+      <tr><td><code>action_rate_l2</code></td><td><span class="badge red">课程 -0.1→-1.0</span></td><td>动作平滑度，逐步收紧</td></tr>
+      <tr><td><code>self_collisions</code></td><td><span class="badge red">-1.0</span></td><td>腿撞躯干的惩罚</td></tr>
+      <tr><td><code>hip_yaw_home</code></td><td><span class="badge red">-1.0</span></td><td>低速时髋偏航保持 HOME（允许转弯）</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ════════ 5. 域随机化 ════════ -->
+<section id="s5">
+  <h2><span class="num">5</span>域随机化（Sim2Real）</h2>
+  <p>这是 sim2real 迁移的核心，每 episode reset 重新采样（非累积）：</p>
+
+  <table>
+    <thead><tr><th>随机化项</th><th>范围</th><th>机制</th><th>频率</th></tr></thead>
+    <tbody>
+      <tr><td>躯干质心偏移</td><td>±3mm → ±15mm（课程）</td><td><code>dr.body_ipos</code> add</td><td>reset</td></tr>
+      <tr><td>头部质心偏移</td><td>±3mm → ±10mm</td><td>同上，逐 body</td><td>reset</td></tr>
+      <tr><td>质量+惯量</td><td>±5%</td><td>\(\alpha\) 缩放 \(m\) 和 \(I\) 同时 \(e^{2\alpha}\)，CoM 不变</td><td>startup</td></tr>
+      <tr><td>关节摩擦</td><td>±10%</td><td><code>FrictionDRBamActuator.friction_scale</code></td><td>reset</td></tr>
+      <tr><td>电枢（转子惯量）</td><td>±10%</td><td><code>dr.joint_armature</code> scale</td><td>reset</td></tr>
+      <tr><td>脚底摩擦</td><td>0.4 – 1.5</td><td>几何属性</td><td>reset</td></tr>
+      <tr><td>IMU 安装误差</td><td>≤6°</td><td>观测级旋转</td><td>startup</td></tr>
+      <tr><td>编码器偏置</td><td>±0.86°</td><td>观测级，固定/env</td><td>startup</td></tr>
+      <tr><td>速度推力</td><td>±0.3 m/s</td><td>踢基底速度</td><td>每 3–6s</td></tr>
+      <tr><td>电压跌落</td><td>vin 7.4–8.0V, drop 0–0.2</td><td>BAM 参数</td><td>reset</td></tr>
+      <tr><td>命令延迟</td><td>Walk 3–6步 (15–30ms)，其他 1步</td><td>mjlab delay buffer</td><td>固定</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warning">
+    <div class="callout-title">质心范围审计</div>
+    <p>CoM 随机化上限从 ±30mm 降至 ±15mm：脚后跟距踝仅 20mm，±30mm 可使 CoM 完全在支撑多边形外，迫使超反应步态，使后退平衡不可训练。</p>
+  </div>
+</section>
+
+<!-- ════════ 6. 训练过程 ════════ -->
+<section id="s6">
+  <h2><span class="num">6</span>训练过程</h2>
+
+  <!-- ═══ 6.1 训练命令总览 ═══ -->
+  <h3>6.1 训练命令总览</h3>
+  <p>所有训练通过 mjlab 的 <code>train</code> 命令启动，使用 <code>uv run</code> 在项目虚拟环境中执行。命令格式：</p>
+  <pre><code>uv run train &lt;TASK_ID&gt; [--env.&lt;path&gt;.&lt;value&gt; ...] [--agent.&lt;path&gt;.&lt;value&gt; ...] [其他全局选项]</code></pre>
+
+  <div class="card">
+    <h4>列出所有可用任务</h4>
+    <pre><code>uv run list-envs</code></pre>
+    <p>打印每个已注册的任务 ID。XgoDuck 相关任务包括：</p>
+  </div>
+
+  <table>
+    <thead><tr><th>任务 ID</th><th>地形</th><th>日志目录</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>Mjlab-Velocity-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_velocity/</code></td><td>主行走任务</td></tr>
+      <tr><td><code>Mjlab-Velocity-Rough-XgoDuck</code></td><td>崎岖</td><td><code>logs/rsl_rl/xgoduck_velocity/</code></td><td>粗糙地形行走</td></tr>
+      <tr><td><code>Mjlab-Velocity-Swizzle-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_velocity_swizzle/</code></td><td>滑冰式交替蹬地</td></tr>
+      <tr><td><code>Mjlab-StandUp-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_standup/</code></td><td>从倒地起立</td></tr>
+      <tr><td><code>Mjlab-StandUp-Rough-XgoDuck</code></td><td>崎岖</td><td><code>logs/rsl_rl/xgoduck_standup/</code></td><td>粗糙地形起立</td></tr>
+      <tr><td><code>Mjlab-GroundPick-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_ground_pick/</code></td><td>蹲下拾取</td></tr>
+      <tr><td><code>Mjlab-GroundPick-Rough-XgoDuck</code></td><td>崎岖</td><td><code>logs/rsl_rl/xgoduck_ground_pick/</code></td><td>粗糙地形拾取</td></tr>
+      <tr><td><code>Mjlab-SitStand-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_sitstand/</code></td><td>坐↔站转换</td></tr>
+      <tr><td><code>Mjlab-SitStand-Rough-XgoDuck</code></td><td>崎岖</td><td><code>logs/rsl_rl/xgoduck_sitstand/</code></td><td>粗糙地形坐站</td></tr>
+      <tr><td><code>Mjlab-BallKick-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_ball_kick_right/</code></td><td>右脚踢球</td></tr>
+      <tr><td><code>Mjlab-BallKick-Left-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_ball_kick_left/</code></td><td>左脚踢球</td></tr>
+      <tr><td><code>Mjlab-Roulade-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_roulade/</code></td><td>前滚翻</td></tr>
+      <tr><td><code>Mjlab-Roulade-Angle-Flat-XgoDuck</code></td><td>平地</td><td><code>logs/rsl_rl/xgoduck_roulade_angle/</code></td><td>带角度观测的前滚翻</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══ 6.2 基本训练命令 ═══ -->
+  <h3>6.2 基本训练命令示例</h3>
+
+  <div class="card">
+    <h4>标准训练（4096 并行环境）</h4>
+    <pre><code>uv run train Mjlab-Velocity-Flat-XgoDuck --env.scene.num-envs 4096</code></pre>
+  </div>
+
+  <div class="card">
+    <h4>崎岖地形训练</h4>
+    <pre><code>uv run train Mjlab-Velocity-Rough-XgoDuck --env.scene.num-envs 4096</code></pre>
+  </div>
+
+  <div class="card">
+    <h4>Swizzle（滑冰）训练</h4>
+    <pre><code>uv run train Mjlab-Velocity-Swizzle-XgoDuck --env.scene.num-envs 4096</code></pre>
+  </div>
+
+  <div class="card">
+    <h4>减少环境数（显存不足时）</h4>
+    <pre><code>uv run train Mjlab-Velocity-Flat-XgoDuck --env.scene.num-envs 2048</code></pre>
+  </div>
+
+  <div class="card">
+    <h4>冒烟测试（快速验证代码路径，仅 5 个迭代）</h4>
+    <pre><code>uv run train Mjlab-Velocity-Flat-XgoDuck --agent.max-iterations 5 --env.scene.num-envs 64</code></pre>
+  </div>
+
+  <!-- ═══ 6.3 CLI 参数详解 ═══ -->
+  <h3>6.3 CLI 参数详解</h3>
+  <p>mjlab 使用 <strong>tyro</strong> CLI 框架解析命令行参数，支持通过点分路径覆盖环境配置 (<code>--env.*</code>) 和 RL 配置 (<code>--agent.*</code>) 中的任意字段。</p>
+
+  <h4>环境配置参数 (<code>--env.*</code>)</h4>
+  <table>
+    <thead><tr><th>参数</th><th>默认值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>--env.scene.num-envs</code></td><td>4096</td><td>并行环境数。越大采样越快，但显存消耗线性增长。2048 适合 8GB GPU</td></tr>
+      <tr><td><code>--env.sim.mujoco.timestep</code></td><td>0.005 (Walk) / 0.004 (其他)</td><td>物理仿真步长（秒）。Walk 用 5ms，StandUp 等用 4ms</td></tr>
+      <tr><td><code>--env.decimation</code></td><td>5</td><td>控制频率 = 1 / (timestep × decimation)。5 × 4ms = 50Hz</td></tr>
+      <tr><td><code>--env.sim.nconmax</code></td><td>35 (平地) / 200 (崎岖)</td><td>最大接触数。崎岖地形需增大防止接触溢出→NaN</td></tr>
+      <tr><td><code>--env.sim.mujoco.iterations</code></td><td>10 (平地) / 30 (崎岖)</td><td>MuJoCo 约束求解器迭代次数</td></tr>
+      <tr><td><code>--env.sim.mujoco.ls-iterations</code></td><td>20 (平地) / 50 (崎岖)</td><td>线搜索迭代次数</td></tr>
+      <tr><td><code>--env.episode-length-s</code></td><td>任务特定</td><td>单 episode 时长（秒）。Velocity 通常 20s，StandUp 8s</td></tr>
+      <tr><td><code>--env.scene.terrain.terrain-type</code></td><td>"plane" / "generator"</td><td>地形类型。平地="plane"，崎岖="generator"</td></tr>
+    </tbody>
+  </table>
+
+  <h4>RL/Agent 配置参数 (<code>--agent.*</code>)</h4>
+  <table>
+    <thead><tr><th>参数</th><th>默认值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>--agent.max-iterations</code></td><td>50,000 (Vel) / 15,000 (StandUp)</td><td>最大训练迭代数。每个迭代 = num_envs × num_steps_per_env 步</td></tr>
+      <tr><td><code>--agent.num-steps-per-env</code></td><td>24</td><td>每次 rollout 每环境采集步数。4096×24 = 98,304 样本/迭代</td></tr>
+      <tr><td><code>--agent.save-interval</code></td><td>250</td><td>每多少迭代保存一次 checkpoint</td></tr>
+      <tr><td><code>--agent.learning-rate</code></td><td>1e-3</td><td>初始学习率（adaptive 模式下基于 KL 自适应调整）</td></tr>
+      <tr><td><code>--agent.clip-param</code></td><td>0.2</td><td>PPO 裁剪比率 ε</td></tr>
+      <tr><td><code>--agent.entropy-coef</code></td><td>0.01</td><td>熵正则化系数（鼓励探索）</td></tr>
+      <tr><td><code>--agent.gamma</code></td><td>0.99</td><td>折扣因子 γ</td></tr>
+      <tr><td><code>--agent.lam</code></td><td>0.95</td><td>GAE 参数 λ</td></tr>
+      <tr><td><code>--agent.desired-kl</code></td><td>0.01</td><td>目标 KL 散度，自适应 LR 的锚点</td></tr>
+      <tr><td><code>--agent.max-grad-norm</code></td><td>1.0</td><td>梯度裁剪范数</td></tr>
+      <tr><td><code>--agent.num-learning-epochs</code></td><td>5</td><td>每批数据 PPO 训练轮数</td></tr>
+      <tr><td><code>--agent.num-mini-batches</code></td><td>4</td><td>每轮切分的 minibatch 数</td></tr>
+      <tr><td><code>--agent.actor.hidden-dims</code></td><td>(512, 256, 128)</td><td>Actor MLP 隐藏层维度</td></tr>
+      <tr><td><code>--agent.critic.hidden-dims</code></td><td>(512, 256, 128)</td><td>Critic MLP 隐藏层维度</td></tr>
+      <tr><td><code>--agent.experiment-name</code></td><td>"xgoduck_velocity" 等</td><td>TensorBoard/checkpoint 目录名</td></tr>
+      <tr><td><code>--agent.run-name</code></td><td>"xgoduck"</td><td>wandb 中的运行名</td></tr>
+    </tbody>
+  </table>
+
+  <h4>全局选项</h4>
+  <table>
+    <thead><tr><th>选项</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>--gpu-ids &lt;ids&gt;</code></td><td>指定使用的 GPU（如 <code>--gpu-ids 0</code> 或 <code>--gpu-ids 0,1</code>）</td></tr>
+      <tr><td><code>--checkpoint-file &lt;path&gt;</code></td><td>从指定 checkpoint 恢复训练</td></tr>
+      <tr><td><code>--hf-jobs</code></td><td>提交训练到 HuggingFace Jobs 远程执行（见 6.6 节）</td></tr>
+      <tr><td><code>--headless</code></td><td>无头模式（无可视化窗口，适合服务器）</td></tr>
+      <tr><td><code>-h / --help</code></td><td>打印完整参数帮助（列出所有可覆盖字段）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">参数发现技巧</div>
+    <p>运行 <code>uv run train Mjlab-Velocity-Flat-XgoDuck --help</code> 可列出<strong>所有</strong>可通过 CLI 覆盖的参数，包括嵌套的环境配置和 RL 超参数。tyro 会自动从 dataclass 生成完整的参数文档。</p>
+  </div>
+
+  <!-- ═══ 6.4 PPO 超参数 ═══ -->
+  <h3>6.4 PPO 超参数完整表</h3>
+  <table>
+    <thead><tr><th>参数</th><th>Velocity 值</th><th>StandUp 值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>Actor 网络</td><td>(512, 256, 128) ELU</td><td>(512, 256, 128) ELU</td><td>观测归一化（EmpiricalNormalization 内嵌）</td></tr>
+      <tr><td>Critic 网络</td><td>(512, 256, 128) ELU</td><td>(512, 256, 128) ELU</td><td>额外特权信息输入</td></tr>
+      <tr><td>分布</td><td>Gaussian, scalar std</td><td>Gaussian, scalar std</td><td>初始 std = 1.0</td></tr>
+      <tr><td>clip_param</td><td>0.2</td><td>0.2</td><td>PPO 裁剪比率</td></tr>
+      <tr><td>entropy_coef</td><td>0.01</td><td>0.01</td><td>探索激励</td></tr>
+      <tr><td>num_learning_epochs</td><td>5</td><td>5</td><td>每批数据训练轮数</td></tr>
+      <tr><td>num_mini_batches</td><td>4</td><td>4</td><td>每轮切分数</td></tr>
+      <tr><td>learning_rate</td><td>1e-3</td><td>1e-3</td><td>adaptive：基于 KL 自适应</td></tr>
+      <tr><td>gamma</td><td>0.99</td><td>0.99</td><td>折扣因子</td></tr>
+      <tr><td>λ (GAE)</td><td>0.95</td><td>0.95</td><td>广义优势估计</td></tr>
+      <tr><td>desired_kl</td><td>0.01</td><td>0.01</td><td>KL 目标，自适应 LR 锚点</td></tr>
+      <tr><td>max_grad_norm</td><td>1.0</td><td>1.0</td><td>梯度裁剪</td></tr>
+      <tr><td>num_steps_per_env</td><td>24</td><td>24</td><td>每次 rollout 环境步数</td></tr>
+      <tr><td>num_envs</td><td>4096</td><td>4096</td><td>并行环境数</td></tr>
+      <tr><td>max_iterations</td><td><strong>50,000</strong></td><td><strong>15,000</strong></td><td>最大训练迭代</td></tr>
+      <tr><td>save_interval</td><td>250</td><td>250</td><td>checkpoint 保存间隔</td></tr>
+      <tr><td>logger</td><td>tensorboard</td><td>tensorboard</td><td>日志后端</td></tr>
+      <tr><td>upload_model</td><td>False</td><td>False</td><td>是否上传到 wandb</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card">
+    <h4>对称性增强（已实现，当前关闭）</h4>
+    <p>代码实现了完整的<strong>左右对称镜像增强</strong>（61 维排列 + 符号表），镜像规则：</p>
+    <ul>
+      <li>左腿关节 (0–4) ↔ 右腿关节 (9–13) 交换，中线关节 (5–8) 不变</li>
+      <li>hip_yaw/hip_roll: 符号取反（反射轴反向）</li>
+      <li>hip_pitch/knee/ankle: 符号取反（左右 HOME 姿态符号相反）</li>
+      <li>base_ang_vel: 取反 roll [0] 和 yaw [2]</li>
+      <li>projected_gravity: 取反 gy [4]</li>
+    </ul>
+    <p>当前 <code>ENABLE_SYMMETRY = False</code>，镜像损失系数 0.5。可在代码中开启以加速收敛。</p>
+  </div>
+
+  <!-- ═══ 6.5 多阶段训练 ═══ -->
+  <h3>6.5 多阶段训练（Shell 脚本）</h3>
+  <p>项目提供两个 Shell 脚本实现<strong>顺序多阶段训练</strong>——每个阶段独立从头训练，不共享 checkpoint。</p>
+
+  <div class="card">
+    <h4>脚本 1：起立 → 行走</h4>
+    <p><code>scripts/train_xgoduck_getup_then_velocity.sh</code></p>
+    <pre><code># 默认：4096 环境，平地
+bash scripts/train_xgoduck_getup_then_velocity.sh
+
+# 崎岖地形
+bash scripts/train_xgoduck_getup_then_velocity.sh --rough
+
+# 跳过起立阶段，仅训练行走
+bash scripts/train_xgoduck_getup_then_velocity.sh --skip-getup
+
+# 自定义环境数 + 指定 GPU
+NUM_ENVS=2048 bash scripts/train_xgoduck_getup_then_velocity.sh --gpu-ids 0
+
+# 转发额外参数给 train 命令（如冒烟测试）
+bash scripts/train_xgoduck_getup_then_velocity.sh --agent.max-iterations 5</code></pre>
+    <p><strong>流程</strong>：① <code>Mjlab-StandUp-Flat-XgoDuck</code> → ② <code>Mjlab-Velocity-Flat-XgoDuck</code></p>
+  </div>
+
+  <div class="card">
+    <h4>脚本 2：拾取 → 起立 → 行走</h4>
+    <p><code>scripts/train_xgoduck_pick_standup_velocity.sh</code></p>
+    <pre><code># 完整三阶段
+bash scripts/train_xgoduck_pick_standup_velocity.sh
+
+# 跳过拾取和起立，仅训练行走
+bash scripts/train_xgoduck_pick_standup_velocity.sh --skip-pick --skip-standup
+
+# 崎岖地形全部三阶段
+bash scripts/train_xgoduck_pick_standup_velocity.sh --rough</code></pre>
+    <p><strong>流程</strong>：① <code>Mjlab-GroundPick-Flat-XgoDuck</code> → ② <code>Mjlab-StandUp-Flat-XgoDuck</code> → ③ <code>Mjlab-Velocity-Flat-XgoDuck</code></p>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">脚本选项汇总</div>
+    <table style="margin-bottom:0">
+      <thead><tr><th>选项</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>--skip-getup</code> / <code>--skip-standup</code></td><td>跳过起立阶段</td></tr>
+        <tr><td><code>--skip-pick</code></td><td>跳过拾取阶段</td></tr>
+        <tr><td><code>--rough</code></td><td>使用崎岖地形版本的任务</td></tr>
+        <tr><td><code>NUM_ENVS=&lt;N&gt;</code></td><td>环境变量，覆盖默认 4096</td></tr>
+        <tr><td><code>--agent.max-iterations &lt;N&gt;</code></td><td>转发给 train 的参数（冒烟测试用）</td></tr>
+        <tr><td><code>--</code></td><td>分隔符：之后的参数全部转发给 train</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ 6.6 HF Jobs ═══ -->
+  <h3>6.6 HuggingFace Jobs 远程训练</h3>
+  <p>添加 <code>--hf-jobs</code> 标志可将训练提交到 HuggingFace Jobs 远程 GPU 节点执行，无需本地 GPU。</p>
+
+  <div class="card">
+    <h4>提交远程训练</h4>
+    <pre><code>uv run train Mjlab-Velocity-Flat-XgoDuck \
+    --env.scene.num-envs 4096 \
+    --agent.max-iterations 4000 \
+    --hf-jobs</code></pre>
+    <p>此命令会在导入阶段被 <code>train_hook.py</code> 拦截，将源码打包上传到 HF，然后在远程容器内执行 <code>uv run train</code>。</p>
+  </div>
+
+  <h4>HF Jobs 专用参数</h4>
+  <table>
+    <thead><tr><th>参数</th><th>默认值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>--flavor</code></td><td><code>l4x1</code></td><td>GPU 硬件规格（NVIDIA L4 × 1）</td></tr>
+      <tr><td><code>--image</code></td><td><code>pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime</code></td><td>Docker 镜像</td></tr>
+      <tr><td><code>--timeout</code></td><td><code>12h</code></td><td>任务最大运行时长</td></tr>
+      <tr><td><code>--namespace</code></td><td>交互选择</td><td>HF 命名空间（个人账号或组织）</td></tr>
+      <tr><td><code>--run-name</code></td><td>task+timestamp</td><td>运行标签</td></tr>
+      <tr><td><code>--detach</code></td><td>False</td><td>提交后立即返回（不流式传输日志）</td></tr>
+      <tr><td><code>--dry-run</code></td><td>False</td><td>打印任务规格但不提交</td></tr>
+      <tr><td><code>--no-wandb</code></td><td>False</td><td>不转发 wandb API key</td></tr>
+      <tr><td><code>--uv-cache</code></td><td>False</td><td>挂载持久化 uv 缓存桶（默认关闭，FUSE 挂载不支持 hardlink）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warning">
+    <div class="callout-title">远程训练自动行为</div>
+    <ul style="margin-bottom:0">
+      <li><strong>源码打包</strong>：git HEAD + 未提交的跟踪文件打包为 tar.gz 上传到 HF dataset repo</li>
+      <li><strong>Checkpoint 上传</strong>：<code>scripts/hf/uploader.py</code> 后台监控 <code>logs/rsl_rl/</code>，自动推送到 HF model repo</li>
+      <li><strong>自动 ONNX 导出</strong>：训练成功后自动导出最终 checkpoint 为 ONNX 并上传（<code>AUTO_EXPORT=1</code>）</li>
+      <li><strong>wandb 转发</strong>：自动从 <code>$WANDB_API_KEY</code> 或 <code>~/.netrc</code> 获取 key 并注入容器</li>
+    </ul>
+  </div>
+
+  <!-- ═══ 6.7 课程学习 ═══ -->
+  <h3>6.7 课程学习</h3>
+  <p>多维度渐进式课程，分阶段开启难度。以下以 Velocity 任务为例：</p>
+
+  <table>
+    <thead><tr><th>课程</th><th>阶段</th><th>iter 范围</th><th>变化</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="6">action_rate 平滑度</td><td>1</td><td>0</td><td>-0.1</td></tr>
+      <tr><td>2</td><td>500</td><td>-0.2</td></tr>
+      <tr><td>3</td><td>750</td><td>-0.4</td></tr>
+      <tr><td>4</td><td>1000</td><td>-0.6</td></tr>
+      <tr><td>5</td><td>1250</td><td>-0.8</td></tr>
+      <tr><td>6</td><td>1500</td><td>-1.0</td></tr>
+      <tr><td rowspan="6">站立环境比例</td><td>1</td><td>0</td><td>2%</td></tr>
+      <tr><td>2</td><td>500</td><td>5%</td></tr>
+      <tr><td>3</td><td>750</td><td>10%</td></tr>
+      <tr><td>4</td><td>1000</td><td>15%</td></tr>
+      <tr><td>5</td><td>1500</td><td>20%</td></tr>
+      <tr><td>6</td><td>2000</td><td>25%</td></tr>
+      <tr><td rowspan="5">头部姿态指令范围</td><td>1</td><td>0</td><td>5%</td></tr>
+      <tr><td>2</td><td>500</td><td>15%</td></tr>
+      <tr><td>3</td><td>1000</td><td>35%</td></tr>
+      <tr><td>4</td><td>1500</td><td>65%</td></tr>
+      <tr><td>5</td><td>2000</td><td>100%</td></tr>
+      <tr><td rowspan="4">头部偏置惩罚</td><td>1</td><td>0–600</td><td>0 (关闭)</td></tr>
+      <tr><td>2</td><td>600</td><td>1.0</td></tr>
+      <tr><td>3</td><td>1000</td><td>2.0</td></tr>
+      <tr><td>4</td><td>1500</td><td>3.0</td></tr>
+      <tr><td rowspan="4">躯干质心随机化</td><td>1</td><td>0</td><td>±3mm</td></tr>
+      <tr><td>2</td><td>500</td><td>±5mm</td></tr>
+      <tr><td>3</td><td>1000</td><td>±10mm</td></tr>
+      <tr><td>4</td><td>1500</td><td>±15mm</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card">
+    <h4>StandUp 任务特有课程</h4>
+    <table>
+      <thead><tr><th>课程</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>ground_state_mix</code></td><td>初始姿态混合：iter 0 以坐/站为主 → iter 2500 以面朝下/面朝上为主（逆课程，先学简单再学难恢复）</td></tr>
+        <tr><td><code>arrival_damping_weight</code></td><td>到达阻尼：iter 0–3000 关闭 → iter 3000 引入 → iter 4000 达 -0.05（技能发现后再精调）</td></tr>
+        <tr><td><code>head_pose_bias_weight</code></td><td>头部偏置：iter 0–1000 关闭 → iter 4000 达 3.0</td></tr>
+        <tr><td><code>torque_rate_weight</code></td><td>力矩变化率：iter 0–3000 关闭 → iter 3000 引入 -1e-3（防抖）</td></tr>
+        <tr><td><code>body_pose_tracking_weight</code></td><td>躯干跟踪：iter 0–2500 关闭 → iter 4000 达 4.0（恢复技能掌握后开启身体控制）</td></tr>
+        <tr><td><code>push_magnitude</code></td><td>推力幅度：iter 0 零推力 → iter 1000 达 ±0.3 m/s（渐进增加鲁棒性）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ 6.8 训练循环 ═══ -->
+  <h3>6.8 训练循环内部流程</h3>
+  <pre><code>uv run train Mjlab-Velocity-Flat-XgoDuck --env.scene.num-envs 4096</code></pre>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="icon">1️⃣</div>
+      <div class="label">入口</div>
+      <div>train_cli → mjlab 插件加载</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">2️⃣</div>
+      <div class="label">环境构造</div>
+      <div>_xgoduck_velocity_cfg() 替换 XML + BAM</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">3️⃣</div>
+      <div class="label">Rollout</div>
+      <div>4096 envs × 24 steps = 98,304 样本</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">4️⃣</div>
+      <div class="label">PPO 更新</div>
+      <div>5 epochs × 4 minibatches = 20 次梯度更新</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">5️⃣</div>
+      <div class="label">自适应 LR</div>
+      <div>KL > 0.01 → 降 LR；KL < 0.01 → 升 LR</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">6️⃣</div>
+      <div class="label">课程推进</div>
+      <div>按 iter 检查课程阶段并更新参数</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">7️⃣</div>
+      <div class="label">Checkpoint</div>
+      <div>每 250 iter 保存 model_XXXX.pt</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>指标</th><th>Velocity</th><th>StandUp</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>每迭代样本数</td><td>98,304</td><td>98,304</td><td>4096 × 24</td></tr>
+      <tr><td>每迭代梯度更新</td><td>20</td><td>20</td><td>5 epochs × 4 minibatches</td></tr>
+      <tr><td>物理步长</td><td>5ms</td><td>4ms</td><td>Walk 用 5ms，其他用 4ms</td></tr>
+      <tr><td>控制频率</td><td>50Hz</td><td>50Hz</td><td>1 / (timestep × decimation)</td></tr>
+      <tr><td>最大迭代</td><td>50,000</td><td>15,000</td><td>Vel 训练约 8–12 小时</td></tr>
+      <tr><td>总交互步数</td><td>~4.9B</td><td>~1.5B</td><td>max_iter × num_envs × steps_per_env</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══ 6.9 监控 ═══ -->
+  <h3>6.9 监控与可视化</h3>
+
+  <div class="card-grid">
+    <div class="mini-card">
+      <h4>TensorBoard</h4>
+      <pre><code>tensorboard --logdir logs/rsl_rl/</code></pre>
+      <p>监控奖励曲线、学习率、KL 散度、episode 长度等。XgoDuck 默认使用 TensorBoard（<code>logger="tensorboard"</code>）。</p>
+    </div>
+    <div class="mini-card green">
+      <h4>Play 回放</h4>
+      <pre><code>uv run play Mjlab-Velocity-Flat-XgoDuck
+uv run play Mjlab-Velocity-Swizzle-XgoDuck</code></pre>
+      <p>无 checkpoint 标志时自动加载最新 <code>model_*.pt</code>。用 <code>--checkpoint-file</code> 指定特定 checkpoint。</p>
+    </div>
+    <div class="mini-card orange">
+      <h4>wandb 工具</h4>
+      <pre><code>uv run python scripts/wandb_utils.py</code></pre>
+      <p>查找最近的 wandb 运行，打印奖励分解、学习率、checkpoint 列表等。</p>
+    </div>
+    <div class="mini-card purple">
+      <h4>观察对比可视化</h4>
+      <pre><code>uv run python scripts/plot_observations_comparison_plotly.py</code></pre>
+      <p>对比不同策略的观察值分布，使用 Plotly 交互式图表。</p>
+    </div>
+  </div>
+
+  <h4>关键监控指标</h4>
+  <table>
+    <thead><tr><th>指标</th><th>含义</th><th>健康信号</th></tr></thead>
+    <tbody>
+      <tr><td><code>Train/mean_reward</code></td><td>平均 episode 奖励</td><td>稳步上升</td></tr>
+      <tr><td><code>Episode_Reward/track_linear_velocity</code></td><td>线速度跟踪奖励</td><td>接近 1.0（满分）</td></tr>
+      <tr><td><code>Episode_Reward/track_angular_velocity</code></td><td>角速度跟踪奖励</td><td>接近 1.0</td></tr>
+      <tr><td><code>Episode_Reward/air_time</code></td><td>摆动相时长奖励</td><td>接近 1.0（步态稳定）</td></tr>
+      <tr><td><code>Episode_Reward/head_pose_tracking</code></td><td>头部姿态跟踪</td><td>接近 1.0</td></tr>
+      <tr><td><code>Episode_Termination/nan_state</code></td><td>NaN 终止次数</td><td>≈0（物理稳定）</td></tr>
+      <tr><td><code>Loss/learning_rate</code></td><td>当前学习率</td><td>adaptive 模式下随 KL 波动</td></tr>
+      <tr><td><code>Loss/mean KL</code></td><td>新旧策略 KL 散度</td><td>接近 desired_kl=0.01</td></tr>
+      <tr><td><code>Loss/entropy</code></td><td>策略熵</td><td>缓慢下降（探索→收敛）</td></tr>
+      <tr><td><code>Episode/length</code></td><td>平均 episode 长度</td><td>接近 episode_length_s / dt</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══ 6.10 Checkpoint 恢复 ═══ -->
+  <h3>6.10 Checkpoint 恢复与选择</h3>
+
+  <div class="card">
+    <h4>从特定 checkpoint 恢复训练</h4>
+    <pre><code>uv run train Mjlab-Velocity-Flat-XgoDuck \
+    --checkpoint-file logs/rsl_rl/xgoduck_velocity/&lt;run&gt;/model_3000.pt</code></pre>
+  </div>
+
+  <div class="card">
+    <h4>Play 时自动选择最新 checkpoint</h4>
+    <pre><code># 自动找到 logs/rsl_rl/xgoduck_velocity/ 下最新的 model_*.pt
+uv run play Mjlab-Velocity-Flat-XgoDuck</code></pre>
+  </div>
+
+  <div class="card">
+    <h4>Play 指定 checkpoint</h4>
+    <pre><code>uv run play Mjlab-Velocity-Flat-XgoDuck \
+    --checkpoint-file logs/rsl_rl/xgoduck_velocity/&lt;run&gt;/model_5000.pt</code></pre>
+  </div>
+
+  <div class="card">
+    <h4>从 wandb 下载 checkpoint</h4>
+    <pre><code>uv run play Mjlab-Velocity-Flat-XgoDuck \
+    --wandb-run-path pollen-robotics/mjlab_microduck/&lt;run_id&gt;</code></pre>
+  </div>
+
+  <!-- ═══ 6.11 多任务体系 ═══ -->
+  <h3>6.11 多任务体系</h3>
+  <table>
+    <thead><tr><th>任务</th><th>目标</th><th>物理模型</th><th>max_iter</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Velocity</strong></td><td>行走 + 转向 + 头部控制</td><td>Walk（仅脚碰撞）</td><td>50,000</td></tr>
+      <tr><td><strong>StandUp</strong></td><td>从倒地起立</td><td>全身碰撞，冻结+掉落起启</td><td>15,000</td></tr>
+      <tr><td><strong>SitStand</strong></td><td>坐 ↔ 站转换</td><td>全身碰撞</td><td>15,000</td></tr>
+      <tr><td><strong>GroundPick</strong></td><td>蹲下嘴触地 → 起身</td><td>全身碰撞，相位化姿态跟踪</td><td>15,000</td></tr>
+      <tr><td><strong>BallKick</strong></td><td>踢球（左/右脚）</td><td>Walk + 球</td><td>15,000</td></tr>
+      <tr><td><strong>Roulade</strong></td><td>前滚翻</td><td>全身碰撞（排除重叠关节）</td><td>15,000</td></tr>
+      <tr><td><strong>Swizzle</strong></td><td>滑冰式交替蹬地</td><td>被动轮模型</td><td>50,000</td></tr>
+      <tr><td><strong>Backlash 变体</strong></td><td>全部任务的齿隙版本</td><td>串联齿隙铰链 + 编码器穿过齿隙</td><td>同基础任务</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">训练前环境准备</div>
+    <ul style="margin-bottom:0">
+      <li><strong>硬件要求</strong>：CUDA GPU，Python 3.12，<a href="https://docs.astral.sh/uv/">uv</a> 包管理器</li>
+      <li><strong>安装</strong>：<code>cd xgoduck_rl && uv sync</code></li>
+      <li><strong>ARM 机器</strong>（DGX Spark / GB10 / Jetson）：首次 <code>uv sync</code> 设置 <code>UV_HTTP_TIMEOUT=600</code>（CUDA wheel 较大）</li>
+      <li><strong>日志位置</strong>：checkpoint 和 TensorBoard 日志在 <code>logs/rsl_rl/&lt;experiment_name&gt;/&lt;run&gt;/</code></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ════════ 7. 部署 ════════ -->
+<section id="s7">
+  <h2><span class="num">7</span>部署流程</h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="icon">🏋️</div>
+      <div class="label">训练完成</div>
+      <div>model_XXXX.pt</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">📤</div>
+      <div class="label">export.py</div>
+      <div>加载 checkpoint</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🔧</div>
+      <div class="label">ONNX 导出</div>
+      <div>归一化烘焙进图</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">📋</div>
+      <div class="label">元数据附加</div>
+      <div>关节顺序/范围</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🤖</div>
+      <div class="label">真机推理</div>
+      <div>61 维 → 14 维 @ 50Hz</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>ONNX 导出关键</h4>
+    <ul>
+      <li>观测归一化（EmpiricalNormalization）作为 MLPModel 的子模块，自动烘焙进 ONNX 计算图：<code>actor(normalizer(obs))</code></li>
+      <li>元数据包含关节顺序、动作范围等部署信息</li>
+      <li>推理输入 61 维观测，输出 14 维关节位置偏移</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ════════ 8. 总结 ════════ -->
+<section id="s8">
+  <h2><span class="num">8</span>核心设计理念总结</h2>
+
+  <div class="card-grid">
+    <div class="mini-card">
+      <h4>① 物理保真优先</h4>
+      <p>BAM 执行器模型精确模拟电磁-摩擦耦合，而非理想 PD——这是 sim2real 成功的关键。摩擦预算包含库仑、Stribeck、负载相关、粘性四项。</p>
+    </div>
+    <div class="mini-card green">
+      <h4>② 可逃避 vs 不可逃避惩罚</h4>
+      <p>头部偏置惩罚用 EMA 滤波只惩罚 DC 分量——"只惩罚策略能改善的误差"。行走振荡不可逃避（不罚），重力下垂可逃避（罚）。</p>
+    </div>
+    <div class="mini-card orange">
+      <h4>③ 课程渐进</h4>
+      <p>从简单到困难：先建立步态（低 action_rate 惩罚），再逐步施加精度要求（头部跟踪）、鲁棒性要求（CoM 随机化）和稳定性（偏置惩罚）。</p>
+    </div>
+    <div class="mini-card purple">
+      <h4>④ Actor-Critic 信息不对称</h4>
+      <p>策略只看传感器级信息（模拟真机）：带噪声、带延迟、带偏置。Critic 看特权信息（真实线速度、接触力）加速训练收敛。</p>
+    </div>
+    <div class="mini-card red">
+      <h4>⑤ 全身域随机化</h4>
+      <p>从质心到摩擦到 IMU 装配误差，覆盖所有真实不确定性来源。每 episode reset 重新采样，非累积。</p>
+    </div>
+    <div class="mini-card">
+      <h4>⑥ 高斯核奖励设计</h4>
+      <p>\(\exp(-e^2/\sigma^2)\) 保证梯度始终非零，误差为 σ 时奖励 1/e。均值形式（非平方和）保证单维度偏差不杀死整体梯度。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 9. 大白话版本 ════════ -->
+<section id="s9">
+  <h2><span class="num">9</span>大白话版本：模型架构、输入输出与训练</h2>
+  <p>前面 8 章全是公式和术语，这章我们用<strong>最通俗的大白话</strong>把整个事情从头讲一遍。不用懂强化学习，不用懂数学，看完你就知道这机器人的"大脑"长什么样、吃什么吐什么、怎么学会走路的。</p>
+
+  <!-- ── 3D 模型可视化 ── -->
+  <div id="nn3d-wrapper">
+    <div id="nn3d-header">
+      <span id="nn3d-title">模型架构 3D 可视化 — 鼠标拖拽旋转 · 滚轮缩放</span>
+      <div>
+        <button id="nn3d-rotate-btn" class="nn3d-btn">暂停旋转</button>
+        <button id="nn3d-reset-btn" class="nn3d-btn" style="margin-left:6px">重置视角</button>
+      </div>
+    </div>
+    <div id="nn3d-container"></div>
+    <div id="nn3d-legend">
+      <span class="nn3d-legend-item"><span class="nn3d-dot" style="background:#b56a2a"></span>输入层 (61 维)</span>
+      <span class="nn3d-legend-item"><span class="nn3d-dot" style="background:#c4842a"></span>隐藏层 1 (512)</span>
+      <span class="nn3d-legend-item"><span class="nn3d-dot" style="background:#9a8a2a"></span>隐藏层 2 (256)</span>
+      <span class="nn3d-legend-item"><span class="nn3d-dot" style="background:#b59a2a"></span>隐藏层 3 (128)</span>
+      <span class="nn3d-legend-item"><span class="nn3d-dot" style="background:#ffd64a"></span>输出层 (14 维)</span>
+    </div>
+    <p id="nn3d-hint">黄色光点表示数据正向传播：传感器输入 → 三层全连接 → 14 个关节动作输出</p>
+  </div>
+
+  <!-- ── 9.1 这机器人在干什么 ── -->
+  <h3>9.1 一句话：这机器人在干什么</h3>
+  <div class="callout">
+    <div class="callout-title">一句话总结</div>
+    给一个小型双足机器人装一个"AI 大脑"（神经网络），让它在仿真器里<strong>反复摔跤几万次</strong>，自己学会怎么走路、怎么站起来、怎么保持头部稳定，最后把学好的大脑导出成一个文件，塞进真机里就能用。
+  </div>
+
+  <!-- ── 9.2 模型架构 ── -->
+  <h3>9.2 模型架构：这个"大脑"长什么样</h3>
+
+  <h4>它就是一个多层全连接神经网络</h4>
+  <p>别被"PPO""Actor-Critic"这些词吓到。本质上，模型就是一个<strong>三层全连接神经网络</strong>（MLP），跟你手写的那个没什么区别：</p>
+
+  <div class="card">
+    <pre><code>输入（61 个数字）
+  │
+  ▼
+┌──────────────┐
+│  全连接层 1   │  512 个神经元，激活函数 ELU
+├──────────────┤
+│  全连接层 2   │  256 个神经元，激活函数 ELU
+├──────────────┤
+│  全连接层 3   │  128 个神经元，激活函数 ELU
+├──────────────┤
+│  输出层       │  14 个数字（对应 14 个关节）
+└──────────────┘</code></pre>
+  </div>
+
+  <p>没有 Transformer，没有注意力机制，没有卷积。就是最朴素的 <code>Linear → ELU → Linear → ELU → Linear → ELU → Linear</code>。三层隐藏层，规模从大到小（512→256→128），像一个漏斗，把信息逐步压缩。</p>
+
+  <h4>为什么用 ELU 而不是 ReLU？</h4>
+  <p>ReLU 在负数区域输出恒为 0（"死掉"），机器人控制中很多信号是<strong>有正有负的</strong>（比如关节角度偏差左偏右偏）。ELU 在负数区域也有输出（平滑的负值），梯度不会断，训练更稳。</p>
+
+  <h4>Actor 和 Critic 是两个大脑</h4>
+  <p>严格说，这不是<strong>一个</strong>网络，而是<strong>两个</strong>网络共享前三层：</p>
+
+  <div class="card-grid">
+    <div class="mini-card green">
+      <h4>Actor（演员）— 干活的</h4>
+      <p>看完传感器数据，直接输出 14 个关节该怎么动。这就是最终部署到真机上的那个大脑。它看到的信息<strong>和真机一模一样</strong>：带噪声、带延迟、带偏置。</p>
+    </div>
+    <div class="mini-card orange">
+      <h4>Critic（评委）— 打分的</h4>
+      <p>看完同样的情况，输出一个数字：当前这个状态值多少分？它比 Actor 多看一些<strong>特权信息</strong>（真实速度、真实接触力等真机测不到的东西）。它只在训练时用，帮 Actor 更快学习，部署时不要它。</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">为什么 Critic 要看特权信息？</div>
+    打个比方：你学开车，教练坐在旁边能看到仪表盘上所有数据（真实车速、发动机转速），但你只能凭感觉。教练用完整信息给你打分反馈，你慢慢就学会凭感觉也开得好。训练完，教练走了，你自己也能开。
+  </div>
+
+  <!-- ── 9.3 输入输出 ── -->
+  <h3>9.3 输入输出：吃什么、吐什么</h3>
+
+  <h4>输入：61 个数字（机器人"感觉"到的一切）</h4>
+  <p>每 0.02 秒（50Hz），机器人的大脑会收到 <strong>61 个数字</strong>，这就是它的全部"感官"。来源包括：</p>
+
+  <table>
+    <thead><tr><th>感官</th><th>维度</th><th>通俗解释</th></tr></thead>
+    <tbody>
+      <tr><td>本体姿态指令</td><td>~3</td><td>命令你"往前走 / 转弯 / 停下"，别人给的遥控指令</td></tr>
+      <tr><td>关节角度偏差</td><td>~14</td><td>每个关节"现在在哪"和"应该在哪"差多少，本体感觉</td></tr>
+      <tr><td>关节速度</td><td>~14</td><td>每个关节转得多快，类似你感觉自己手臂挥动的速度</td></tr>
+      <tr><td>上一帧动作</td><td>~14</td><td>你上次让关节动了多少，记住自己刚做了什么</td></tr>
+      <tr><td>身体姿态（IMU）</td><td>~6</td><td>身体朝哪倾斜、转了多少，类似人的前庭系统（管平衡的）</td></tr>
+      <tr><td>身体角速度</td><td>~3</td><td>身体正在往哪边倒的速度</td></tr>
+      <tr><td>线速度（估计）</td><td>~3</td><td>整体往前/往后/往侧面飘的速度</td></tr>
+      <tr><td>足部接触</td><td>~2</td><td>左右脚是否踩在地上，类似脚底的触觉</td></tr>
+      <tr><td>其他（定时器等）</td><td>~2</td><td>辅助信息，比如原地转弯的时间到了没</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warning">
+    <div class="callout-title">注意：Actor 看到的不是"真相"</div>
+    这 61 个数字<strong>不是</strong>物理引擎里的精确值。代码会故意往里面加噪声、加延迟、加偏置，模拟真机传感器的不完美。这样训练出来的大脑到真机上才不会"水土不服"。Critic 才看到精确值。
+  </div>
+
+  <h4>输出：14 个数字（让 14 个关节动）</h4>
+  <p>大脑吐出 <strong>14 个数字</strong>，每个数字在 −1 到 +1 之间（经过 tanh 压缩）。这 14 个数字分别对应机器人 14 个关节的目标角度偏移量：</p>
+
+  <div class="card">
+    <pre><code>输出 = [关节1目标偏移, 关节2目标偏移, ..., 关节14目标偏移]
+         ↑                    ↑
+         范围 [-1, 1]          乘以缩放系数后加到"默认站姿"上</code></pre>
+  </div>
+
+  <p>也就是说，不是让关节直接去某个绝对位置，而是<strong>在默认姿势基础上微调</strong>。比如默认是站直的，输出 [0.1, -0.05, ...] 就意味着"比站直稍微抬一下左腿、收一点右腿"。这种设计让网络不用从零学起，学习效率高很多。</p>
+
+  <div class="card-grid">
+    <div class="mini-card purple">
+      <h4>14 个关节是哪些？</h4>
+      <p>每条腿 5 个（髋关节 3 个：俯仰/滚转/偏航，膝关节 1 个，踝关节 1 个），两条腿共 10 个。头部 4 个（颈部俯仰/偏航 + 头部俯仰/偏航），用来控制嘴巴和头的朝向。</p>
+    </div>
+    <div class="mini-card">
+      <h4>输出之后发生了什么？</h4>
+      <p>这 14 个目标角度不会直接发给电机。中间还隔着一层 <strong>BAM 执行器模型</strong>——它模拟真实舵机的电磁力、摩擦、延迟，把"目标角度"变成"实际转到的角度"。所以仿真里的机器人和真机一样"笨拙"。</p>
+    </div>
+  </div>
+
+  <!-- ── 9.4 怎么训练 ── -->
+  <h3>9.4 怎么训练：摔几万次就学会了</h3>
+
+  <h4>核心思路：让机器人自己试，做对了奖励，做错了惩罚</h4>
+  <p>训练的本质就是<strong>试错</strong>。没有人类示范，没有预编程动作，机器人完全从零开始，靠奖励信号自己摸索。流程是这样的：</p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="icon">1</div>
+      <div class="label">同时开 4096 个机器人</div>
+      GPU 上并行跑 4096 个一模一样的机器人
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">2</div>
+      <div class="label">每个都随机试试怎么动</div>
+      神经网络输出动作，机器人动了 24 步
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">3</div>
+      <div class="label">给每个打分</div>
+      走得好加分，摔了扣分，头歪了扣分
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">4</div>
+      <div class="label">总结经验</div>
+      哪些动作导致高分？下次多做
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">5</div>
+      <div class="label">更新大脑</div>
+      微调神经网络参数，变得更聪明
+    </div>
+    <div class="flow-arrow">↻</div>
+    <div class="flow-step">
+      <div class="icon">6</div>
+      <div class="label">重复几万轮</div>
+      直到走得又稳又好
+    </div>
+  </div>
+
+  <h4>奖励：做对了给糖，做错了挨揍</h4>
+  <p>机器人怎么知道自己做得好不好？靠一堆<strong>奖励项</strong>加减。每个奖励项就是一个"规则"，符合规则加分，违反扣分。主要的奖励项用大白话说：</p>
+
+  <table>
+    <thead><tr><th>奖励项</th><th>权重</th><th>大白话</th></tr></thead>
+    <tbody>
+      <tr><td>跟踪线速度</td><td>3.0</td><td>让你往前走，走对方向就给糖（最重要的一项）</td></tr>
+      <tr><td>跟踪角速度</td><td>1.5</td><td>让你按指令转弯，转对了给糖</td></tr>
+      <tr><td>跟踪站立姿态</td><td>2.0</td><td>没让你走的时候就站好，别乱动</td></tr>
+      <tr><td>头部姿态跟踪</td><td>0.5</td><td>头别歪，眼睛看前方</td></tr>
+      <tr><td>动作平滑惩罚</td><td>-0.05</td><td>别抽搐，动作别太剧烈（扣分项）</td></tr>
+      <tr><td>动作变化率惩罚</td><td>-0.005</td><td>别一帧一帧地抖，动作要连贯（扣分项）</td></tr>
+      <tr><td>足部交替惩罚</td><td>-0.5</td><td>别两只脚同时离地，也别拖着脚走</td></tr>
+      <tr><td>滑步惩罚</td><td>-0.1</td><td>脚踩在地上就别滑，要真走不要溜冰</td></tr>
+      <tr><td>躯干朝向惩罚</td><td>-0.2</td><td>身体别歪，保持直立</td></tr>
+      <tr><td>超限惩罚</td><td>-0.05</td><td>关节别转到极限，留余地</td></tr>
+    </tbody>
+  </table>
+
+  <p>每一项的权重决定了机器人更在乎什么。比如线速度权重 3.0 最高——<strong>最重要的就是把路走对</strong>。动作变化率惩罚只有 −0.005——<strong>轻微提醒别抖</strong>，但不会为了不抖而牺牲走路能力。</p>
+
+  <h4>课程学习：先易后难</h4>
+  <p>如果一上来就把所有要求都加上，机器人啥也不会，每项都扣分，总分永远负的，根本不知道该怎么改。所以用<strong>课程学习</strong>——一开始要求很低，慢慢加难度：</p>
+
+  <div class="card">
+    <pre><code>第 0 轮：   只要别摔就行，动作怎么抽搐都无所谓
+           ↓ 慢慢加难度
+第 5000 轮： 要走对方向，动作开始要求平滑
+           ↓ 继续加难度
+第 15000 轮：头要稳，身体要直，脚不能滑
+           ↓ 最后阶段
+第 40000 轮：全身随机化都打开，连质心位置都随机变
+           目标：在什么烂条件下都能走稳</code></pre>
+  </div>
+
+  <p>具体哪些难度是慢慢加的：</p>
+  <table>
+    <thead><tr><th>课程维度</th><th>开始</th><th>结束</th><th>大白话</th></tr></thead>
+    <tbody>
+      <tr><td>动作平滑要求</td><td>几乎不罚</td><td>正常罚</td><td>先让你随便动，再要求动作好看</td></tr>
+      <tr><td>站立比例</td><td>10%</td><td>30%</td><td>先多练走路，后面加站立训练</td></tr>
+      <tr><td>头部精度要求</td><td>松</td><td>紧</td><td>先不管头，后面要求头也要稳</td></tr>
+      <tr><td>质心随机化</td><td>无</td><td>±2cm</td><td>先在理想条件下练，后面加不确定性</td></tr>
+      <tr><td>偏置惩罚</td><td>关闭</td><td>开启</td><td>先不管姿态偏置，后期才罚</td></tr>
+    </tbody>
+  </table>
+
+  <h4>PPO：不是瞎试，是有策略地试</h4>
+  <p>纯随机试错效率太低。PPO（Proximal Policy Optimization）的核心思想是：</p>
+  <ol>
+    <li><strong>用当前大脑试一批</strong>：4096 个机器人各自用当前策略走 24 步。</li>
+    <li><strong>算出每步好不好</strong>：跟"评委"估的分比，走得好于预期就是正，差就是负。</li>
+    <li><strong>只小幅调整</strong>：关键来了——PPO 限制每次更新幅度（clip=0.2），不让大脑一次变太多。变太多容易"走火入魔"，把学过的忘掉。</li>
+    <li><strong>重复</strong>：每批更新完，用新大脑再试一批，循环几万次。</li>
+  </ol>
+
+  <div class="callout">
+    <div class="callout-title">PPO 的 clip 是什么意思？</div>
+    假设当前大脑觉得"遇到这个情况，60% 概率抬左腿"。如果这批试下来抬左腿效果不错，你想让它更倾向抬左腿。PPO 说：最多调到 72%（60% × 1.2），不能再多了。防止一次调太多翻车。这就是 clip=0.2 的含义——每次最多调整 20%。
+  </div>
+
+  <h4>训练要多久</h4>
+  <table>
+    <thead><tr><th>任务</th><th>训练轮数</th><th>大概含义</th></tr></thead>
+    <tbody>
+      <tr><td>站立起身（StandUp）</td><td>15,000 轮</td><td>学会从摔倒状态爬起来</td></tr>
+      <tr><td>地面拾取（GroundPick）</td><td>15,000 轮</td><td>学会蹲下捡东西再站起来</td></tr>
+      <tr><td>行走（Velocity）</td><td>50,000 轮</td><td>学会往前走、转弯、站立</td></tr>
+    </tbody>
+  </table>
+  <p>在一张 GPU 上，行走任务大约跑 <strong>3-5 小时</strong>。4096 个机器人同时练，效率很高。</p>
+
+  <h4>训练完怎么用</h4>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="icon">1</div>
+      <div class="label">训练完</div>
+      得到 .pt 文件（PyTorch 模型）
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">2</div>
+      <div class="label">导出</div>
+      转成 .onnx 文件
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">3</div>
+      <div class="label">部署</div>
+      塞进真机控制器
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">4</div>
+      <div class="label">运行</div>
+      真机每 20ms 读传感器→喂给模型→输出14个关节动作
+    </div>
+  </div>
+
+  <p>导出时，输入归一化（减均值除标准差）会被<strong>烘焙进 ONNX 文件</strong>。也就是说，真机拿到的是 61 个原始数字，ONNX 内部自己先做归一化再推理，真机代码不用管归一化的事，直接喂原始数据就行。</p>
+
+  <!-- ── 9.5 一图总结 ── -->
+  <h3>9.5 一图总结全部</h3>
+  <div class="card">
+    <pre><code>┌─────────────────────────────────────────────────────────┐
+│                    训练阶段（仿真器里）                    │
+│                                                         │
+│  4096 个机器人同时跑                                     │
+│       │                                                 │
+│       ▼                                                 │
+│  每个机器人感知到 61 个数字（带噪声/延迟/偏置）            │
+│       │                                                 │
+│       ▼                                                 │
+│  Actor 神经网络（512→256→128）输出 14 个关节动作           │
+│       │                                                 │
+│       ▼                                                 │
+│  BAM 执行器模拟真实舵机 → 关节实际转动                    │
+│       │                                                 │
+│       ▼                                                 │
+│  物理引擎算出机器人怎么动了 → 算奖励（走对了+分，摔了-分）  │
+│       │                                                 │
+│       ▼                                                 │
+│  Critic（看特权信息）打分 → PPO 小幅更新 Actor 参数       │
+│       │                                                 │
+│       ↺ 重复 5 万轮                                      │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│                    部署阶段（真机上）                     │
+│                                                         │
+│  传感器读数（61 个数字）→ ONNX 模型 → 14 个关节动作 → 电机  │
+│  每 20ms 循环一次，没有 Critic，没有奖励，纯推理           │
+│                                                         │
+└─────────────────────────────────────────────────────────┘</code></pre>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">最后用一句话总结</div>
+    <strong>一个三层神经网络，吃 61 个传感器数字，吐 14 个关节动作，在仿真器里摔 5 万轮学会走路，导出成 ONNX 塞进真机就能跑。</strong>前面 8 章的所有公式和细节，都是为了让这个"摔"的过程更高效、更接近真机、最终能真正迁移到现实世界。
+  </div>
+</section>
+
+</div>
+
+<footer>
+  XgoDuck RL Analysis · 基于 mjlab 1.3.0 / MuJoCo Warp / rsl_rl PPO · Apache 2.0
+</footer>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+(function() {
+  const container = document.getElementById('nn3d-container');
+  if (!container) return;
+
+  const scene = new THREE.Scene();
+  const cw = container.clientWidth || 800;
+  const ch = container.clientHeight || 460;
+
+  const camera = new THREE.PerspectiveCamera(42, cw / ch, 0.1, 100);
+  camera.position.set(0, 2, 17);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(cw, ch);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.6;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+  const dirL = new THREE.DirectionalLight(0xffffff, 0.55);
+  dirL.position.set(5, 10, 7);
+  scene.add(dirL);
+
+  /* ── 层定义 ── */
+  const layerDefs = [
+    { name: '输入',     size: '61',  n: 16, x: -8,  r: 2.0, color: 0xb56a2a, sz: 0.18 },
+    { name: '隐藏层 1',  size: '512', n: 24, x: -4,  r: 2.8, color: 0xc4842a, sz: 0.15 },
+    { name: '隐藏层 2',  size: '256', n: 20, x:  0,  r: 2.4, color: 0x9a8a2a, sz: 0.15 },
+    { name: '隐藏层 3',  size: '128', n: 16, x:  4,  r: 2.0, color: 0xb59a2a, sz: 0.15 },
+    { name: '输出',     size: '14',  n: 14, x:  8,  r: 1.7, color: 0xffd64a, sz: 0.22 }
+  ];
+
+  /* ── 文字标签 ── */
+  function makeLabel(text) {
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = 100;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = 'rgba(237,233,224,0.92)';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = '#e5e2da';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0.75, 0.75, c.width - 1.5, c.height - 1.5);
+    ctx.fillStyle = '#242521';
+    ctx.font = '600 26px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = text.split('\n');
+    lines.forEach((line, i) => {
+      ctx.fillText(line, c.width / 2, c.height / 2 + (i - (lines.length - 1) / 2) * 30);
+    });
+    const tex = new THREE.CanvasTexture(c);
+    return new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  }
+
+  /* ── 创建层 ── */
+  const layerData = [];
+  layerDefs.forEach(def => {
+    const nodes = [];
+    for (let i = 0; i < def.n; i++) {
+      const a = (i / def.n) * Math.PI * 2;
+      const y = Math.cos(a) * def.r;
+      const z = Math.sin(a) * def.r;
+      const geo = new THREE.SphereGeometry(def.sz, 16, 12);
+      const mat = new THREE.MeshPhongMaterial({
+        color: def.color, shininess: 50,
+        emissive: def.color, emissiveIntensity: 0.12
+      });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(def.x, y, z);
+      scene.add(m);
+      nodes.push(m);
+    }
+    const lbl = makeLabel(def.name + '\n' + def.size);
+    lbl.position.set(def.x, def.r + 1.3, 0);
+    lbl.scale.set(3.2, 1.0, 1);
+    scene.add(lbl);
+    layerData.push({ nodes, def });
+  });
+
+  /* ── 连接线 ── */
+  const conns = [];
+  for (let li = 0; li < layerData.length - 1; li++) {
+    const A = layerData[li].nodes;
+    const B = layerData[li + 1].nodes;
+    A.forEach(aN => {
+      const k = Math.min(4, B.length);
+      const used = new Set();
+      for (let c = 0; c < k; c++) {
+        let j = Math.floor(Math.random() * B.length);
+        while (used.has(j)) j = Math.floor(Math.random() * B.length);
+        used.add(j);
+        const pts = [aN.position.clone(), B[j].position.clone()];
+        const g = new THREE.BufferGeometry().setFromPoints(pts);
+        const m = new THREE.LineBasicMaterial({ color: 0xb5b0a5, transparent: true, opacity: 0.10 });
+        const ln = new THREE.Line(g, m);
+        scene.add(ln);
+        conns.push({ from: aN.position.clone(), to: B[j].position.clone() });
+      }
+    });
+  }
+
+  /* ── 数据脉冲 ── */
+  const pulses = [];
+  let lastPulse = 0;
+  function spawnPulse() {
+    if (conns.length === 0) return;
+    const cn = conns[Math.floor(Math.random() * conns.length)];
+    const g = new THREE.SphereGeometry(0.07, 8, 6);
+    const m = new THREE.MeshBasicMaterial({ color: 0xffd64a, transparent: true, opacity: 0.9 });
+    const sp = new THREE.Mesh(g, m);
+    sp.position.copy(cn.from);
+    scene.add(sp);
+    pulses.push({ mesh: sp, from: cn.from, to: cn.to, t: 0, spd: 0.4 + Math.random() * 0.4 });
+  }
+
+  /* ── 动画循环 ── */
+  function animate(time) {
+    requestAnimationFrame(animate);
+    controls.update();
+    if (time - lastPulse > 160) { spawnPulse(); lastPulse = time; }
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i];
+      p.t += p.spd * 0.016;
+      if (p.t >= 1) {
+        scene.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+        pulses.splice(i, 1);
+      } else {
+        p.mesh.position.lerpVectors(p.from, p.to, p.t);
+        p.mesh.material.opacity = 0.9 * Math.sin(p.t * Math.PI);
+      }
+    }
+    renderer.render(scene, camera);
+  }
+  animate(0);
+
+  /* ── 窗口缩放 ── */
+  window.addEventListener('resize', () => {
+    const nw = container.clientWidth;
+    const nh = container.clientHeight;
+    camera.aspect = nw / nh;
+    camera.updateProjectionMatrix();
+    renderer.setSize(nw, nh);
+  });
+
+  /* ── 按钮交互 ── */
+  const rotBtn = document.getElementById('nn3d-rotate-btn');
+  if (rotBtn) {
+    rotBtn.addEventListener('click', () => {
+      controls.autoRotate = !controls.autoRotate;
+      rotBtn.textContent = controls.autoRotate ? '暂停旋转' : '开始旋转';
+    });
+  }
+  const rstBtn = document.getElementById('nn3d-reset-btn');
+  if (rstBtn) {
+    rstBtn.addEventListener('click', () => {
+      camera.position.set(0, 2, 17);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

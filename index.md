@@ -77,6 +77,8 @@ OpenStack Bare Metal Management System. [https://github.com/openstack/ironic](ht
 - [Multi-Version Concurrent Control with etcd](posts/mvcc_in_etcd.md)
 - [vLLM 在 Ubuntu 24.04.1 x86_64 上的编译、改动与验证流程](posts/vllm_build_add_run_test.md) ([English](posts/vllm_build_add_run_test_en.md))
 - [vLLM 社区近期 100 个未关闭重要 Issues 分析](posts/vllm_community_issues_analysis.md)
+- [XgoDuck RL — 代码实现、数学原理与训练过程分析](posts/xgoduck_rl_analysis.html)
+- [XGO Duck — 双核通信与控制循环分析](posts/architecture.html)
 
 ### Social Media
 

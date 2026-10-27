@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XGO Duck — 双核通信与控制循环分析</title>
+<style>
+  :root{
+    --bg:#f5f3ed; --card:#ffffff; --card2:#edeae3; --border:#d8d4ca;
+    --text:#242521; --muted:#8a887e; --blue:#2563eb; --purple:#7c3aed;
+    --green:#059669; --orange:#d97706; --red:#dc2626; --cyan:#0891b2;
+    --linux:#2563eb; --stm32:#059669; --uart:#d97706;
+    --radius:8px; --mono:'SF Mono','Fira Code','Consolas','Courier New',monospace;
+    --sans:-apple-system,system-ui,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;
+    font-size:15px;padding:0;min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:2.2rem;font-weight:800;letter-spacing:-1.5px;color:var(--text);margin-bottom:6px}
+  .subtitle{color:var(--muted);font-size:.95rem;margin-bottom:32px;letter-spacing:.02em}
+  h2{font-size:1.6rem;font-weight:700;letter-spacing:-.8px;margin:48px 0 18px;
+    padding-left:14px;border-left:3px solid var(--blue);color:var(--text)}
+  h2.green{border-color:var(--green)}
+  h2.purple{border-color:var(--purple)}
+  h2.orange{border-color:var(--orange)}
+  h3{font-size:1.05rem;font-weight:600;margin:24px 0 12px;color:var(--text)}
+  h3.g{color:var(--green)} h3.o{color:var(--orange)}
+  p{margin-bottom:12px;color:var(--text);font-size:.92rem;line-height:1.65}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:20px 22px;margin-bottom:16px}
+  .card-title{font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:.85rem;margin:8px 0}
+  th{background:var(--card2);color:var(--muted);font-weight:600;padding:8px 10px;
+    text-align:left;border-bottom:2px solid var(--border);white-space:nowrap}
+  td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+  td code{color:var(--cyan);font-family:var(--mono);font-size:.82rem}
+  tr:hover td{background:rgba(37,99,235,.04)}
+  code,.mono{font-family:var(--mono);font-size:.85rem;color:var(--cyan)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600}
+  .b-blue{background:rgba(37,99,235,.1);color:var(--blue)}
+  .b-green{background:rgba(5,150,105,.1);color:var(--green)}
+  .b-orange{background:rgba(217,119,6,.1);color:var(--orange)}
+  .b-purple{background:rgba(124,58,237,.1);color:var(--purple)}
+  .b-red{background:rgba(220,38,38,.1);color:var(--red)}
+  .b-cyan{background:rgba(8,145,178,.1);color:var(--cyan)}
+  .flow{background:#f8f6f0;border:1px solid var(--border);border-radius:6px;
+    padding:16px 18px;font-family:var(--mono);font-size:.82rem;line-height:1.85;
+    overflow-x:auto;white-space:pre;color:var(--text)}
+  .flow .kw{color:var(--purple)} .flow .fn{color:var(--blue)}
+  .flow .cmt{color:var(--muted)} .flow .num{color:var(--orange)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  .tag{color:var(--muted);font-size:.8rem}
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;
+    font-size:.78rem;font-weight:500}
+  .pill-l{background:rgba(37,99,235,.08);color:var(--blue);border:1px solid rgba(37,99,235,.2)}
+  .pill-s{background:rgba(5,150,105,.08);color:var(--green);border:1px solid rgba(5,150,105,.2)}
+  .pill-u{background:rgba(217,119,6,.08);color:var(--orange);border:1px solid rgba(217,119,6,.2)}
+  svg{display:block;margin:0 auto;max-width:100%}
+  .svg-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:20px;margin-bottom:16px;overflow-x:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;font-size:.8rem;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .pulse{animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  .toc{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 20px;margin-bottom:32px}
+  .toc a{color:var(--blue);text-decoration:none;font-size:.9rem;display:block;padding:3px 0}
+  .toc a:hover{text-decoration:underline}
+  .note{border-left:3px solid var(--orange);background:rgba(217,119,6,.05);padding:12px 16px;
+    border-radius:0 6px 6px 0;margin:12px 0;font-size:.88rem}
+  .note.green{border-color:var(--green);background:rgba(5,150,105,.05)}
+  .note.red{border-color:var(--red);background:rgba(220,38,38,.05)}
+  ul{padding-left:20px;margin-bottom:12px}
+  ul li{margin-bottom:6px;font-size:.92rem}
+  .hero-stat{display:flex;gap:24px;flex-wrap:wrap;margin:20px 0}
+  .hero-stat .item{text-align:center}
+  .hero-stat .num{font-size:1.8rem;font-weight:800;font-family:var(--mono);letter-spacing:-1px}
+  .hero-stat .lbl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>XGO Duck 双核通信与控制循环分析</h1>
+<div class="subtitle">Arduino Uno Q · STM32 (Zephyr RTOS) + Linux (Python FastAPI) · 15 自由度四足机器人</div>
+
+<div class="hero-stat">
+  <div class="item"><div class="num" style="color:var(--stm32)">100Hz</div><div class="lbl">STM32 实时控制</div></div>
+  <div class="item"><div class="num" style="color:var(--linux)">50Hz</div><div class="lbl">Linux 策略推理</div></div>
+  <div class="item"><div class="num" style="color:var(--uart)">2Mbps</div><div class="lbl">Bridge UART</div></div>
+  <div class="item"><div class="num" style="color:var(--purple)">5</div><div class="lbl">ONNX 策略模型</div></div>
+  <div class="item"><div class="num" style="color:var(--red)">15</div><div class="lbl">舵机数量</div></div>
+</div>
+
+<div class="toc">
+  <a href="#comm">一、双核通信原理</a>
+  <a href="#channels">二、数据通道与二进制 ABI</a>
+  <a href="#pipeline">三、端到端控制流水线：从按钮点击到舵机运动</a>
+  <a href="#stm32-loop">四、STM32 实时控制循环 (100Hz)</a>
+  <a href="#linux-loop">五、Linux 策略推理循环 (50Hz)</a>
+  <a href="#recovery">六、跌倒恢复状态机</a>
+  <a href="#safety">七、安全机制总结</a>
+</div>
+
+<!-- ==================== 一、双核通信原理 ==================== -->
+<h2 id="comm">一、双核通信原理</h2>
+
+<div class="card">
+<div class="card-title">架构总览</div>
+<p>Arduino Uno Q 是一块双核板：<span class="pill pill-s">STM32 核心</span> 运行 Zephyr RTOS + Arduino Sketch，负责实时硬件控制；<span class="pill pill-l">Linux 核心</span> 运行 Python FastAPI 应用，负责策略推理和 Web 界面。两者通过 <strong>Bridge RPC 机制</strong> 进行通信。</p>
+
+<div class="svg-wrap" style="border:none;padding:0;margin-top:16px">
+<svg viewBox="0 0 960 420" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:960px">
+  <!-- 背景 -->
+  <defs>
+    <linearGradient id="linuxBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8edf5"/><stop offset="100%" stop-color="#d4ddea"/>
+    </linearGradient>
+    <linearGradient id="stmBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8f5ee"/><stop offset="100%" stop-color="#d4ebde"/>
+    </linearGradient>
+    <linearGradient id="uartBg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#faf5ed"/><stop offset="50%" stop-color="#f5ede0"/><stop offset="100%" stop-color="#faf5ed"/>
+    </linearGradient>
+    <marker id="arrowR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowL" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrowO" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#d97706"/>
+    </marker>
+  </defs>
+
+  <!-- Linux 核心框 -->
+  <rect x="10" y="20" width="340" height="380" rx="14" fill="url(#linuxBg)" stroke="#2563eb" stroke-width="1.5" opacity="0.95"/>
+  <text x="180" y="45" text-anchor="middle" fill="#2563eb" font-size="15" font-weight="700">Linux 核心 (Python)</text>
+  <text x="180" y="62" text-anchor="middle" fill="#8a887e" font-size="10">FastAPI WebUI · Port 9527</text>
+
+  <!-- Linux 内部模块 -->
+  <rect x="30" y="80" width="130" height="45" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="95" y="100" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">Controller</text>
+  <text x="95" y="116" text-anchor="middle" fill="#8a887e" font-size="9">50Hz step() · ONNX</text>
+
+  <rect x="30" y="135" width="130" height="40" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="95" y="153" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">receive()</text>
+  <text x="95" y="167" text-anchor="middle" fill="#8a887e" font-size="9">100Hz · IMU 滤波</text>
+
+  <rect x="30" y="190" width="130" height="38" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="95" y="208" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">SignalFilter</text>
+  <text x="95" y="221" text-anchor="middle" fill="#8a887e" font-size="9">互补滤波</text>
+
+  <rect x="30" y="245" width="130" height="38" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="95" y="263" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">Recovery</text>
+  <text x="95" y="276" text-anchor="middle" fill="#8a887e" font-size="9">跌倒恢复状态机</text>
+
+  <rect x="30" y="300" width="130" height="38" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="95" y="318" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">Policy × 5</text>
+  <text x="95" y="331" text-anchor="middle" fill="#8a887e" font-size="9">walk/roller/getup/pick/roulade</text>
+
+  <rect x="180" y="80" width="150" height="55" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="255" y="100" text-anchor="middle" fill="#7c3aed" font-size="11" font-weight="600">Bridge.notify()</text>
+  <text x="255" y="115" text-anchor="middle" fill="#8a887e" font-size="9">duck_command</text>
+  <text x="255" y="127" text-anchor="middle" fill="#8a887e" font-size="9">duck_cal / duck_servo</text>
+
+  <rect x="180" y="150" width="150" height="55" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="255" y="170" text-anchor="middle" fill="#0891b2" font-size="11" font-weight="600">Bridge.provide()</text>
+  <text x="255" y="185" text-anchor="middle" fill="#8a887e" font-size="9">duck_state 回调</text>
+  <text x="255" y="197" text-anchor="middle" fill="#8a887e" font-size="9">duck_raw / *_reply</text>
+
+  <!-- arduino-router -->
+  <rect x="180" y="300" width="150" height="55" rx="8" fill="#faf5ed" stroke="#d4c4a4" stroke-width="1"/>
+  <text x="255" y="320" text-anchor="middle" fill="#d97706" font-size="11" font-weight="600">arduino-router</text>
+  <text x="255" y="335" text-anchor="middle" fill="#8a887e" font-size="9">Unix socket → /dev/ttyHS1</text>
+  <text x="255" y="347" text-anchor="middle" fill="#8a887e" font-size="9">2 Mbps</text>
+
+  <!-- UART 通道 -->
+  <rect x="370" y="80" width="220" height="260" rx="10" fill="url(#uartBg)" stroke="#d4c4a4" stroke-width="1.5"/>
+  <text x="480" y="100" text-anchor="middle" fill="#d97706" font-size="12" font-weight="700">UART 2Mbps Bridge</text>
+  <text x="480" y="116" text-anchor="middle" fill="#8a887e" font-size="9">RouterBridge 0.4.3 + RPClite 0.3.1</text>
+
+  <!-- 通道箭头 -->
+  <line x1="330" y1="105" x2="370" y2="140" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrowR)"/>
+  <text x="345" y="118" fill="#2563eb" font-size="8" font-weight="600">command→</text>
+
+  <line x1="370" y1="160" x2="330" y2="175" stroke="#059669" stroke-width="1.5" marker-end="url(#arrowL)"/>
+  <text x="340" y="155" fill="#059669" font-size="8" font-weight="600">←state</text>
+
+  <line x1="330" y1="120" x2="370" y2="190" stroke="#2563eb" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#arrowR)"/>
+  <line x1="370" y1="210" x2="330" y2="195" stroke="#059669" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#arrowL)"/>
+
+  <!-- 通道列表 -->
+  <text x="480" y="140" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_command  (80B →)</text>
+  <text x="480" y="155" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_state   (240B ←)</text>
+  <text x="480" y="170" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_raw      (38B ←)</text>
+  <text x="480" y="185" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_cal      (10B →)</text>
+  <text x="480" y="200" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_cal_reply(10B ←)</text>
+  <text x="480" y="215" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_servo    (12B →)</text>
+  <text x="480" y="230" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_srv_reply(14B ←)</text>
+  <text x="480" y="245" text-anchor="middle" fill="#242521" font-size="9" font-family="monospace">duck_boot_pd  (32B ←)</text>
+
+  <!-- MsgPack 帧 -->
+  <rect x="390" y="265" width="180" height="55" rx="6" fill="#f5f0fa" stroke="#c4b4d4" stroke-width="1"/>
+  <text x="480" y="282" text-anchor="middle" fill="#7c3aed" font-size="10" font-weight="600">MsgPack RPC 封装</text>
+  <text x="480" y="296" text-anchor="middle" fill="#8a887e" font-size="8">fixarray(3/4) + bin payload</text>
+  <text x="480" y="308" text-anchor="middle" fill="#8a887e" font-size="8">有界帧解析 (duck_msgpack_frame)</text>
+
+  <!-- STM32 核心框 -->
+  <rect x="610" y="20" width="340" height="380" rx="14" fill="url(#stmBg)" stroke="#059669" stroke-width="1.5" opacity="0.95"/>
+  <text x="780" y="45" text-anchor="middle" fill="#059669" font-size="15" font-weight="700">STM32 核心 (Zephyr RTOS)</text>
+  <text x="780" y="62" text-anchor="middle" fill="#8a887e" font-size="10">Arduino Sketch · 实时控制</text>
+
+  <!-- STM32 内部模块 -->
+  <rect x="630" y="80" width="140" height="45" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="700" y="100" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">controlTask</text>
+  <text x="700" y="116" text-anchor="middle" fill="#059669" font-size="9">100Hz · 优先级4</text>
+
+  <rect x="630" y="135" width="140" height="40" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="700" y="153" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">reportTask</text>
+  <text x="700" y="167" text-anchor="middle" fill="#8a887e" font-size="9">状态上报 · 优先级6</text>
+
+  <rect x="630" y="190" width="140" height="38" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="700" y="208" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">Bridge 回调</text>
+  <text x="700" y="221" text-anchor="middle" fill="#8a887e" font-size="9">receiveCommand/Cal/Servo</text>
+
+  <rect x="630" y="245" width="140" height="38" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="700" y="263" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">SCS 总线</text>
+  <text x="700" y="276" text-anchor="middle" fill="#8a887e" font-size="9">Serial1 @ 1Mbps · 15舵机</text>
+
+  <rect x="630" y="300" width="140" height="38" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="700" y="318" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">QMI8658 IMU</text>
+  <text x="700" y="331" text-anchor="middle" fill="#8a887e" font-size="9">I2C @ 400kHz</text>
+
+  <!-- 右侧：舵机和IMU -->
+  <rect x="790" y="80" width="140" height="55" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="860" y="100" text-anchor="middle" fill="#d97706" font-size="11" font-weight="600">15 × SCS 舵机</text>
+  <text x="860" y="115" text-anchor="middle" fill="#8a887e" font-size="9">ID 10-14, 20-24, 30-34</text>
+  <text x="860" y="127" text-anchor="middle" fill="#8a887e" font-size="9">同步读/写 · 力矩控制</text>
+
+  <rect x="790" y="150" width="140" height="48" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="860" y="170" text-anchor="middle" fill="#0891b2" font-size="11" font-weight="600">QMI8658</text>
+  <text x="860" y="185" text-anchor="middle" fill="#8a887e" font-size="9">±2g / ±1024dps</text>
+
+  <!-- 连接线 STM32 内部 -->
+  <line x1="770" y1="100" x2="790" y2="105" stroke="#d97706" stroke-width="1.2" marker-end="url(#arrowO)"/>
+  <line x1="790" y1="120" x2="770" y2="115" stroke="#d97706" stroke-width="1.2" marker-end="url(#arrowO)"/>
+  <line x1="770" y1="210" x2="790" y2="170" stroke="#0891b2" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrowO)"/>
+
+  <!-- UART → STM32 -->
+  <line x1="590" y1="140" x2="630" y2="100" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrowR)"/>
+  <line x1="630" y1="155" x2="590" y2="160" stroke="#059669" stroke-width="1.5" marker-end="url(#arrowL)"/>
+  <line x1="590" y1="190" x2="630" y2="210" stroke="#2563eb" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#arrowR)"/>
+  <line x1="630" y1="225" x2="590" y2="210" stroke="#059669" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#arrowL)"/>
+
+  <!-- 同步对象标注 -->
+  <rect x="440" y="350" width="80" height="22" rx="5" fill="#edeae3" stroke="#d8d4ca" stroke-width="1"/>
+  <text x="480" y="365" text-anchor="middle" fill="#8a887e" font-size="8">mutex / sem</text>
+
+  <!-- 动画点 -->
+  <circle cx="340" cy="105" r="3" fill="#2563eb" class="pulse"/>
+  <circle cx="340" cy="175" r="3" fill="#059669" class="pulse"/>
+  <circle cx="600" cy="100" r="3" fill="#2563eb" class="pulse"/>
+  <circle cx="600" cy="155" r="3" fill="#059669" class="pulse"/>
+</svg>
+</div>
+
+<div class="legend">
+  <span><i style="background:#2563eb"></i>Linux → STM32 (命令/指令)</span>
+  <span><i style="background:#059669"></i>STM32 → Linux (状态/反馈)</span>
+  <span><i style="background:#d97706"></i>SCS 舵机总线</span>
+  <span><i style="background:#0891b2"></i>I2C (IMU)</span>
+  <span><i style="background:#7c3aed"></i>MsgPack RPC 封装层</span>
+</div>
+</div>
+
+<h3>物理链路</h3>
+<div class="card">
+<table>
+<tr><th>层面</th><th>说明</th></tr>
+<tr><td>串口</td><td>UART 串口，波特率 <code>2 Mbps</code>（BRIDGE_BAUD = 2000000）</td></tr>
+<tr><td>路由守护</td><td>Linux 侧 <code>arduino-router</code> 守护进程，将 Unix socket 桥接到 <code>/dev/ttyHS1</code></td></tr>
+<tr><td>硬件 FIFO</td><td>STM32U5 UART FIFO 默认未启用，2 Mbps 下每字节仅 5µs，必须先开 FIFO（<code>uart_fifo.h</code> 中 <code>enableUartFifo()</code>）</td></tr>
+<tr><td>波特率配置</td><td><code>router-2m.sh</code> 通过 systemd override 将 arduino-router 配置为 2 Mbps</td></tr>
+</table>
+</div>
+
+<h3>RPC 协议栈与关键补丁</h3>
+<div class="card">
+<p>通信建立在 Arduino 官方的 <strong>RouterBridge + RPClite + MsgPack</strong> 库之上，但做了两处关键补丁（<code>prepare-bridge.py</code>）：</p>
+<table>
+<tr><th>补丁</th><th>问题</th><th>修复</th></tr>
+<tr>
+  <td><span class="badge b-blue">RouterBridge 栈扩容</span></td>
+  <td>RPC 线程栈仅 500 字节，二进制 payload 比文本 RPC 更大，会栈溢出</td>
+  <td>将 <code>UPDATE_THREAD_STACK_SIZE</code> 从 500 → 4096 字节</td>
+</tr>
+<tr>
+  <td><span class="badge b-purple">有界 MsgPack 帧解析</span></td>
+  <td>原始 RPClite 的 <code>MsgPack::Unpacker</code> 对不完整二进制数据不安全且频繁分配内存</td>
+  <td>用 <code>duck_msgpack_frame.h</code> 替换 <code>parse_packet()</code>：先无分配扫描出完整 MessagePack 对象字节数，再交给 Unpacker 解析；超限或非法直接丢弃</td>
+</tr>
+</table>
+
+<div class="note">
+<strong>有界帧解析原理：</strong><code>duckMsgpackFrame()</code> 是一个状态机，逐字节解析 MessagePack 类型前缀，计算 fixstr/bin/array/map 等容器及其子元素的字节数，递归深度 ≤16，总大小 ≤ <code>DECODER_BUFFER_SIZE/4</code>。返回完整对象长度（正数）、不完整（0）或非法（-1）。只有完整帧才传入 <code>Unpacker</code>，杜绝了部分数据导致的内存安全问题。
+</div>
+</div>
+
+<!-- ==================== 二、数据通道 ==================== -->
+<h2 id="channels" class="purple">二、数据通道与二进制 ABI</h2>
+
+<div class="card">
+<div class="card-title">通道总览</div>
+<p>通信通道通过 <code>Bridge.provide()</code> / <code>Bridge.notify()</code> 注册，每个通道承载一个固定大小的 packed 结构体（<code>protocol.h</code> / <code>wire.py</code>），两端用相同的 struct 布局 + magic 字节校验：</p>
+
+<table>
+<tr><th>通道名</th><th>方向</th><th>结构体</th><th>大小</th><th>magic</th><th>用途</th></tr>
+<tr><td><code>duck_command</code></td><td><span class="badge b-blue">L→S</span></td><td>CommandPacket</td><td>80B</td><td><code>DQC1</code></td><td>关节目标角度 + 模式 (ARM/DISARM/POLICY/HOLD)</td></tr>
+<tr><td><code>duck_state</code></td><td><span class="badge b-green">S→L</span></td><td>StatePacket</td><td>240B</td><td><code>DQS1</code></td><td>IMU数据 + 15关节角度/速度/目标 + 状态标志</td></tr>
+<tr><td><code>duck_raw</code></td><td><span class="badge b-green">S→L</span></td><td>RawPacket</td><td>38B</td><td><code>DQR2</code></td><td>舵机原始编码器位置（标定时每tick发，平时每20帧）</td></tr>
+<tr><td><code>duck_cal</code></td><td><span class="badge b-blue">L→S</span></td><td>CalPacket</td><td>10B</td><td><code>DQL2</code></td><td>标定指令（进入/退出/单关节居中）</td></tr>
+<tr><td><code>duck_cal_reply</code></td><td><span class="badge b-green">S→L</span></td><td>CalReplyPacket</td><td>10B</td><td><code>DQA1</code></td><td>标定结果回复</td></tr>
+<tr><td><code>duck_servo</code></td><td><span class="badge b-blue">L→S</span></td><td>ServoPacket</td><td>12B</td><td><code>DQV2</code></td><td>舵机调试指令（改ID/设增益/Ping/复位中位）</td></tr>
+<tr><td><code>duck_servo_reply</code></td><td><span class="badge b-green">S→L</span></td><td>ServoReplyPacket</td><td>14B</td><td><code>DQS3</code></td><td>舵机调试结果回复</td></tr>
+<tr><td><code>duck_boot_pd</code></td><td><span class="badge b-green">S→L</span></td><td>32B (原始)</td><td>32B</td><td>—</td><td>启动时读取的舵机永久 P/D 增益，每100帧发一次</td></tr>
+</table>
+</div>
+
+<div class="grid2">
+<div class="card">
+<div class="card-title">CommandPacket (80 字节)</div>
+<div class="flow"><span class="cmt">// Little endian, packed</span>
+<span class="kw">struct</span> CommandPacket {
+  <span class="kw">char</span>     magic[4];    <span class="cmt">// "DQC1"</span>
+  <span class="kw">uint32_t</span> seq;          <span class="cmt">// 命令序列号</span>
+  <span class="kw">uint32_t</span> sourceUs;     <span class="cmt">// 源时间戳(µs)</span>
+  <span class="kw">uint32_t</span> ttlUs;        <span class="cmt">// 生存时间</span>
+  <span class="kw">uint8_t</span>  mode;         <span class="cmt">// DISARM/ARM/POLICY/HOLD</span>
+  <span class="kw">uint8_t</span>  reserved;
+  <span class="kw">uint16_t</span> reserved2;
+  <span class="kw">float</span>    target[<span class="num">15</span>];  <span class="cmt">// 关节目标角度(°)</span>
+};</div>
+</div>
+<div class="card">
+<div class="card-title">StatePacket (240 字节)</div>
+<div class="flow"><span class="kw">struct</span> StatePacket {
+  <span class="kw">char</span>     magic[4];    <span class="cmt">// "DQS1"</span>
+  <span class="kw">uint8_t</span>  version, flags;<span class="cmt">// 状态位</span>
+  <span class="kw">uint16_t</span> servoMask;   <span class="cmt">// 在线舵机位图</span>
+  <span class="kw">uint32_t</span> seq, sampleUs;
+  <span class="kw">uint32_t</span> imuUs, commandSeq;
+  <span class="kw">uint32_t</span> commandAgeUs;
+  <span class="kw">uint32_t</span> periodUs, workUs;
+  <span class="kw">uint32_t</span> overruns, reportDrops;
+  <span class="kw">uint32_t</span> invalidCommands;
+  <span class="kw">int16_t</span>  acc[<span class="num">3</span>], gyro[<span class="num">3</span>];
+  <span class="kw">float</span>    angle[<span class="num">15</span>];   <span class="cmt">// 关节角度</span>
+  <span class="kw">float</span>    velocity[<span class="num">15</span>];<span class="cmt">// 关节速度</span>
+  <span class="kw">float</span>    target[<span class="num">15</span>];  <span class="cmt">// 当前目标</span>
+};</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-title">STM32 线程模型与同步原语</div>
+<table>
+<tr><th>线程/对象</th><th>类型</th><th>说明</th></tr>
+<tr><td>controlThread</td><td><span class="badge b-green">优先级4 · 栈4096</span></td><td>100Hz 实时控制循环，舵机读写 + IMU 读取</td></tr>
+<tr><td>reportThread</td><td><span class="badge b-green">优先级6 · 栈4096</span></td><td>状态上报循环，阻塞在信号量上</td></tr>
+<tr><td>主线程 (loop)</td><td><span class="badge b-cyan">Arduino loop</span></td><td>仅 delay(100)，Bridge RPC 回调在此执行</td></tr>
+<tr><td><code>commandMu</code></td><td>k_mutex</td><td>保护 latest/pending 命令缓冲</td></tr>
+<tr><td><code>stateMu</code> + <code>reportReady</code></td><td>k_mutex + k_sem</td><td>controlTask 产出 state 后 give 信号量，reportTask take 后发出</td></tr>
+<tr><td><code>motorsMu</code></td><td>k_mutex</td><td>保护 motors[] 数组（controlTask 与 Bridge 回调共享）</td></tr>
+<tr><td><code>hostMu</code></td><td>k_mutex</td><td>保护 cal/servo 调试指令的挂起缓冲</td></tr>
+</table>
+</div>
+
+<!-- ==================== 端到端控制流水线 ==================== -->
+<h2 id="pipeline" class="orange">三、端到端控制流水线：从按钮点击到舵机运动</h2>
+
+<p>本节追踪从用户在浏览器中点击「Walk / get up」按钮、拖动摇杆，到最终舵机执行动作的<strong>完整调用链</strong>。整个流水线跨越三个执行域：浏览器 JavaScript → Linux Python 服务 → STM32 Zephyr 固件，涉及 HTTP API、线程间通信、ONNX 推理、UART RPC 和 SCS 总线协议。</p>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 960 780" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:960px">
+  <defs>
+    <marker id="pa" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="pg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#059669"/>
+    </marker>
+    <marker id="po" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#d97706"/>
+    </marker>
+    <marker id="pp" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/>
+    </marker>
+    <marker id="pr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#dc2626"/>
+    </marker>
+    <marker id="pc" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#0891b2"/>
+    </marker>
+  </defs>
+
+  <!-- ====== 阶段标签 ====== -->
+  <rect x="10" y="10" width="150" height="24" rx="5" fill="#eef2fa" stroke="#2563eb" stroke-width="1"/>
+  <text x="85" y="27" text-anchor="middle" fill="#2563eb" font-size="11" font-weight="700">① 浏览器 (app.js)</text>
+
+  <rect x="180" y="10" width="150" height="24" rx="5" fill="#eef2fa" stroke="#2563eb" stroke-width="1"/>
+  <text x="255" y="27" text-anchor="middle" fill="#2563eb" font-size="11" font-weight="700">② FastAPI 路由</text>
+
+  <rect x="350" y="10" width="170" height="24" rx="5" fill="#f0f7f3" stroke="#059669" stroke-width="1"/>
+  <text x="435" y="27" text-anchor="middle" fill="#059669" font-size="11" font-weight="700">③ Controller 方法</text>
+
+  <rect x="540" y="10" width="160" height="24" rx="5" fill="#f5f0fa" stroke="#7c3aed" stroke-width="1"/>
+  <text x="620" y="27" text-anchor="middle" fill="#7c3aed" font-size="11" font-weight="700">④ 50Hz 策略推理</text>
+
+  <rect x="720" y="10" width="150" height="24" rx="5" fill="#f0f7f3" stroke="#059669" stroke-width="1"/>
+  <text x="795" y="27" text-anchor="middle" fill="#059669" font-size="11" font-weight="700">⑤ STM32 执行</text>
+
+  <!-- ====== Step 1: 用户点击按钮 ====== -->
+  <rect x="10" y="50" width="150" height="75" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="85" y="68" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">点击 Walk / get up</text>
+  <text x="85" y="82" text-anchor="middle" fill="#8a887e" font-size="8">data-mode="policy"</text>
+  <text x="85" y="96" text-anchor="middle" fill="#8a887e" font-size="8">app.js L13</text>
+  <text x="85" y="110" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">setMode('policy')</text>
+  <text x="85" y="120" text-anchor="middle" fill="#8a887e" font-size="7">→ post('mode',{mode})</text>
+
+  <line x1="160" y1="87" x2="178" y2="87" stroke="#2563eb" stroke-width="2" marker-end="url(#pa)"/>
+
+  <!-- ====== Step 2: HTTP 请求 ====== -->
+  <rect x="180" y="50" width="150" height="75" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="255" y="68" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">HTTP POST</text>
+  <text x="255" y="82" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">/api/mode</text>
+  <text x="255" y="96" text-anchor="middle" fill="#8a887e" font-size="8">main.py L22-24</text>
+  <text x="255" y="110" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">mode(body)</text>
+  <text x="255" y="120" text-anchor="middle" fill="#8a887e" font-size="7">→ controller.set_mode()</text>
+
+  <line x1="330" y1="87" x2="348" y2="87" stroke="#2563eb" stroke-width="2" marker-end="url(#pa)"/>
+
+  <!-- ====== Step 3: Controller.set_mode ====== -->
+  <rect x="350" y="45" width="170" height="85" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="435" y="62" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">Controller.set_mode()</text>
+  <text x="435" y="76" text-anchor="middle" fill="#8a887e" font-size="8">controller.py L173</text>
+  <text x="435" y="90" text-anchor="middle" fill="#059669" font-size="8">▸ 校验 mode & feedback</text>
+  <text x="435" y="103" text-anchor="middle" fill="#059669" font-size="8">▸ generation++ · mode='policy'</text>
+  <text x="435" y="116" text-anchor="middle" fill="#d97706" font-size="8">▸ arm_pending = True</text>
+  <text x="435" y="126" text-anchor="middle" fill="#8a887e" font-size="7">▸ recovery.reset() · needs_reset</text>
+
+  <!-- ====== Step 3b: 摇杆命令 (并行) ====== -->
+  <rect x="10" y="145" width="150" height="80" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="85" y="163" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">拖动摇杆 / 键盘</text>
+  <text x="85" y="177" text-anchor="middle" fill="#8a887e" font-size="8">app.js L60-81</text>
+  <text x="85" y="191" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">joystick() → updateMotion()</text>
+  <text x="85" y="205" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">sendCommand()</text>
+  <text x="85" y="217" text-anchor="middle" fill="#8a887e" font-size="7">→ post('command',{twist,head,mouth})</text>
+
+  <line x1="160" y1="185" x2="178" y2="185" stroke="#2563eb" stroke-width="2" marker-end="url(#pa)"/>
+
+  <rect x="180" y="145" width="150" height="80" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="255" y="163" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">HTTP POST</text>
+  <text x="255" y="177" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">/api/command</text>
+  <text x="255" y="191" text-anchor="middle" fill="#8a887e" font-size="8">main.py L30-32</text>
+  <text x="255" y="205" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">command(body)</text>
+  <text x="255" y="217" text-anchor="middle" fill="#8a887e" font-size="7">50ms 心跳自动重发</text>
+
+  <line x1="330" y1="185" x2="348" y2="185" stroke="#2563eb" stroke-width="2" marker-end="url(#pa)"/>
+
+  <rect x="350" y="145" width="170" height="80" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="435" y="163" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">Controller.command()</text>
+  <text x="435" y="177" text-anchor="middle" fill="#8a887e" font-size="8">controller.py L327</text>
+  <text x="435" y="191" text-anchor="middle" fill="#059669" font-size="8">▸ 校验 twist[3] 范围</text>
+  <text x="435" y="205" text-anchor="middle" fill="#059669" font-size="8">▸ 校验 head[4] · mouth</text>
+  <text x="435" y="217" text-anchor="middle" fill="#d97706" font-size="8">▸ 存储 self.twist/head/mouth</text>
+
+  <!-- ====== 分隔线 ====== -->
+  <line x1="10" y1="240" x2="870" y2="240" stroke="#d8d4ca" stroke-width="1" stroke-dasharray="4,4"/>
+  <text x="435" y="255" text-anchor="middle" fill="#8a887e" font-size="9" font-style="italic">↑ 用户交互层（HTTP 请求，异步） · ↓ 50Hz 策略线程（每 20ms 自动循环）</text>
+
+  <!-- ====== Step 4: 50Hz step() ====== -->
+  <rect x="350" y="270" width="170" height="100" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="435" y="288" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">controller.step()</text>
+  <text x="435" y="301" text-anchor="middle" fill="#8a887e" font-size="8">controller.py L477</text>
+  <text x="435" y="315" text-anchor="middle" fill="#059669" font-size="8">① 读取 feedback + filtered</text>
+  <text x="435" y="328" text-anchor="middle" fill="#059669" font-size="8">② 检查新鲜度 (<150ms)</text>
+  <text x="435" y="341" text-anchor="middle" fill="#059669" font-size="8">③ recovery.update() 状态机</text>
+  <text x="435" y="354" text-anchor="middle" fill="#059669" font-size="8">④ 选择策略模型</text>
+  <text x="435" y="365" text-anchor="middle" fill="#8a887e" font-size="7">读取 twist/head/mouth</text>
+
+  <line x1="520" y1="320" x2="538" y2="320" stroke="#7c3aed" stroke-width="2" marker-end="url(#pp)"/>
+
+  <!-- ====== Step 5: ONNX 推理 ====== -->
+  <rect x="540" y="270" width="160" height="100" rx="8" fill="#f5f0fa" stroke="#7c3aed" stroke-width="2"/>
+  <text x="620" y="288" text-anchor="middle" fill="#7c3aed" font-size="10" font-weight="700">ONNX 推理</text>
+  <text x="620" y="301" text-anchor="middle" fill="#8a887e" font-size="8">policy.py L99</text>
+  <text x="620" y="315" text-anchor="middle" fill="#7c3aed" font-size="8" font-family="monospace">build_obs() → [1,61]</text>
+  <text x="620" y="328" text-anchor="middle" fill="#7c3aed" font-size="8" font-family="monospace">session.run() → [1,14]</text>
+  <text x="620" y="341" text-anchor="middle" fill="#8a887e" font-size="7">动作低通滤波</text>
+  <text x="620" y="354" text-anchor="middle" fill="#8a887e" font-size="7">leg α=0.45 head α=0.2</text>
+  <text x="620" y="365" text-anchor="middle" fill="#0891b2" font-size="7" font-family="monospace">action_to_deg() → 15°</text>
+
+  <line x1="620" y1="370" x2="620" y2="390" stroke="#7c3aed" stroke-width="2" marker-end="url(#pp)"/>
+
+  <!-- ====== Step 6: 编码命令 ====== -->
+  <rect x="540" y="390" width="160" height="70" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="620" y="408" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">编码 & 发送命令</text>
+  <text x="620" y="421" text-anchor="middle" fill="#8a887e" font-size="8">controller.py L574</text>
+  <text x="620" y="435" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">encode_command(seq,...)</text>
+  <text x="620" y="448" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">Bridge.notify('duck_command')</text>
+
+  <line x1="700" y1="425" x2="718" y2="425" stroke="#d97706" stroke-width="2" marker-end="url(#po)"/>
+
+  <!-- ====== Step 7: UART 传输 ====== -->
+  <rect x="720" y="390" width="150" height="70" rx="8" fill="#faf5ed" stroke="#d97706" stroke-width="1.5"/>
+  <text x="795" y="408" text-anchor="middle" fill="#d97706" font-size="10" font-weight="600">UART 2Mbps</text>
+  <text x="795" y="421" text-anchor="middle" fill="#8a887e" font-size="8">MsgPack RPC 封装</text>
+  <text x="795" y="435" text-anchor="middle" fill="#8a887e" font-size="8">80B CommandPacket</text>
+  <text x="795" y="448" text-anchor="middle" fill="#8a887e" font-size="8">magic "DQC1"</text>
+
+  <line x1="795" y1="460" x2="795" y2="480" stroke="#d97706" stroke-width="2" marker-end="url(#po)"/>
+
+  <!-- ====== Step 8: STM32 接收 ====== -->
+  <rect x="720" y="480" width="150" height="70" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="795" y="498" text-anchor="middle" fill="#242521" font-size="10" font-weight="600">receiveCommand()</text>
+  <text x="795" y="511" text-anchor="middle" fill="#8a887e" font-size="8">sketch.ino L44</text>
+  <text x="795" y="525" text-anchor="middle" fill="#059669" font-size="8">▸ 校验 magic+mode+TTL</text>
+  <text x="795" y="538" text-anchor="middle" fill="#059669" font-size="8">▸ 存入 latest (commandMu)</text>
+
+  <line x1="795" y1="550" x2="795" y2="570" stroke="#059669" stroke-width="2" marker-end="url(#pg)"/>
+
+  <!-- ====== Step 9: 100Hz 控制循环 ====== -->
+  <rect x="720" y="570" width="150" height="90" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="2"/>
+  <text x="795" y="588" text-anchor="middle" fill="#059669" font-size="10" font-weight="700">controlTask 100Hz</text>
+  <text x="795" y="601" text-anchor="middle" fill="#8a887e" font-size="8">sketch.ino L308</text>
+  <text x="795" y="615" text-anchor="middle" fill="#059669" font-size="8">▸ 读 latest → 校验</text>
+  <text x="795" y="628" text-anchor="middle" fill="#d97706" font-size="8">▸ ARM → enabled=true</text>
+  <text x="795" y="641" text-anchor="middle" fill="#059669" font-size="8">▸ motors[i].desAngleDeg</text>
+  <text x="795" y="654" text-anchor="middle" fill="#059669" font-size="8">▸ sendMotorDesPos()</text>
+
+  <line x1="795" y1="660" x2="795" y2="680" stroke="#059669" stroke-width="2" marker-end="url(#pg)"/>
+
+  <!-- ====== Step 10: SCS 总线 ====== -->
+  <rect x="720" y="680" width="150" height="60" rx="8" fill="#faf5ed" stroke="#d97706" stroke-width="1.5"/>
+  <text x="795" y="698" text-anchor="middle" fill="#d97706" font-size="10" font-weight="600">SCS 同步写</text>
+  <text x="795" y="711" text-anchor="middle" fill="#8a887e" font-size="8">scs_bus.h L109</text>
+  <text x="795" y="725" text-anchor="middle" fill="#8a887e" font-size="8">0x83 广播 0xFE</text>
+  <text x="795" y="735" text-anchor="middle" fill="#8a887e" font-size="8">15舵机目标位置</text>
+
+  <!-- ====== 反馈回路 ====== -->
+  <!-- STM32 → Linux (duck_state) -->
+  <rect x="540" y="570" width="160" height="55" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="620" y="588" text-anchor="middle" fill="#059669" font-size="10" font-weight="600">reportTask → state</text>
+  <text x="620" y="601" text-anchor="middle" fill="#8a887e" font-size="8">240B StatePacket</text>
+  <text x="620" y="614" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">Bridge.notify('duck_state')</text>
+
+  <line x1="720" y1="598" x2="702" y2="598" stroke="#059669" stroke-width="2" marker-end="url(#pg)"/>
+
+  <rect x="540" y="480" width="160" height="70" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="620" y="498" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="600">controller.receive()</text>
+  <text x="620" y="511" text-anchor="middle" fill="#8a887e" font-size="8">controller.py L131</text>
+  <text x="620" y="525" text-anchor="middle" fill="#2563eb" font-size="8">▸ decode_state() → Feedback</text>
+  <text x="620" y="538" text-anchor="middle" fill="#2563eb" font-size="8">▸ filter.update() IMU滤波</text>
+  <text x="620" y="550" text-anchor="middle" fill="#d97706" font-size="8">▸ 存储 feedback + filtered</text>
+
+  <line x1="620" y1="480" x2="620" y2="370" stroke="#2563eb" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#pa)" opacity="0.6"/>
+
+  <!-- ====== 前端状态轮询 ====== -->
+  <rect x="10" y="570" width="150" height="55" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1"/>
+  <text x="85" y="588" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="600">状态轮询</text>
+  <text x="85" y="601" text-anchor="middle" fill="#8a887e" font-size="8">app.js L108</text>
+  <text x="85" y="614" text-anchor="middle" fill="#8a887e" font-size="8">setInterval 250ms</text>
+
+  <rect x="180" y="570" width="150" height="55" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1"/>
+  <text x="255" y="588" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="600">HTTP GET</text>
+  <text x="255" y="601" text-anchor="middle" fill="#0891b2" font-size="8" font-family="monospace">/api/status</text>
+  <text x="255" y="614" text-anchor="middle" fill="#8a887e" font-size="8">controller.status()</text>
+
+  <line x1="160" y1="598" x2="178" y2="598" stroke="#2563eb" stroke-width="1.5" marker-end="url(#pa)"/>
+  <line x1="330" y1="598" x2="348" y2="598" stroke="#2563eb" stroke-width="1.5" marker-end="url(#pa)"/>
+
+  <!-- 反馈箭头标注 -->
+  <text x="660" y="425" text-anchor="middle" fill="#059669" font-size="9" font-style="italic" opacity="0.7">← 反馈回路 100Hz</text>
+  <text x="660" y="435" text-anchor="middle" fill="#059669" font-size="8" opacity="0.5">duck_state 240B</text>
+
+  <!-- 脉冲动画 -->
+  <circle cx="170" cy="87" r="4" fill="#2563eb" class="pulse"/>
+  <circle cx="340" cy="87" r="4" fill="#2563eb" class="pulse"/>
+  <circle cx="530" cy="320" r="4" fill="#7c3aed" class="pulse"/>
+  <circle cx="710" cy="425" r="4" fill="#d97706" class="pulse"/>
+  <circle cx="710" cy="598" r="4" fill="#059669" class="pulse"/>
+  <circle cx="530" cy="515" r="4" fill="#2563eb" class="pulse"/>
+</svg>
+</div>
+
+<!-- ====== 详细步骤说明 ====== -->
+<h3>阶段 ① — 浏览器交互层 (app.js)</h3>
+
+<div class="card">
+<div class="card-title">Step 1: 用户点击模式按钮</div>
+<p>用户在控制页面点击「Walk / get up」按钮（<code>data-mode="policy"</code>）。<code>app.js</code> 第 13 行通过 <code>querySelectorAll('[data-mode]')</code> 绑定了所有模式按钮的 <code>onclick</code> 事件：</p>
+<div class="flow"><span class="cmt">// app.js L12-13</span>
+<span class="kw">async function</span> <span class="fn">setMode</span>(mode) {
+  <span class="kw">await</span> <span class="fn">post</span>(<span class="num">'mode'</span>, {mode});  <span class="cmt">// → POST /api/mode</span>
+}
+document.<span class="fn">querySelectorAll</span>(<span class="num">'[data-mode]'</span>).forEach(
+  b => b.onclick = () => <span class="fn">setMode</span>(b.dataset.mode));</div>
+<p><code>post()</code> 是统一的 HTTP 封装函数（L10），发送 <code>POST /api/mode</code>，body 为 <code>{"mode":"policy"}</code>。</p>
+</div>
+
+<div class="card">
+<div class="card-title">Step 2: 摇杆 / 键盘运动指令（并行持续发送）</div>
+<p>用户拖动左侧摇杆控制前进/侧移，右侧摇杆控制转向。<code>joystick()</code> 函数（L60）绑定 Pointer 事件：</p>
+<div class="flow"><span class="cmt">// app.js L60-81 — 摇杆事件</span>
+zone.onpointerdown = e => {
+  pointer = e.pointerId;
+  <span class="fn">move</span>(e);       <span class="cmt">// 更新 sticks[side] = {x, y}</span>
+  <span class="fn">sendCommand</span>(); <span class="cmt">// 立即发送</span>
+};
+zone.onpointermove = e => { <span class="kw">if</span>(e.pointerId===pointer) <span class="fn">move</span>(e); };
+<span class="cmt">// 释放 → 归零 → sendCommand()</span>
+zone.onpointerup = release;</div>
+<p><code>updateMotion()</code>（L40）将摇杆值映射为 <code>targetMotion = [vx, vy, ωz]</code>，考虑死区（15%）和模式限制（普通行走 vs 轮式行走）。<code>sendCommand()</code>（L51）对运动做指数平滑（<code>0.3*old + 0.7*target</code>），然后 POST <code>/api/command</code>：</p>
+<div class="flow"><span class="cmt">// app.js L51-58 — 发送运动指令</span>
+<span class="kw">async function</span> <span class="fn">sendCommand</span>() {
+  motion = motion.map((old,i) => <span class="num">.3</span>*old + <span class="num">.7</span>*targetMotion[i]);
+  <span class="kw">await</span> <span class="fn">post</span>(<span class="num">'command'</span>, {
+    twist: [...motion],           <span class="cmt">// [vx, vy, ωz]</span>
+    head: [$('head0').value, ...],<span class="cmt">// [4个头部角度]</span>
+    mouth: +$('mouth').value       <span class="cmt">// 嘴部 0-30°</span>
+  });
+}</div>
+<p>此外，<code>app.js</code> 第 107 行设有 <strong>50ms 心跳定时器</strong>：即使用户不操作摇杆，也每 50ms 自动重发当前运动指令，确保 Controller 的 <code>web_time</code> 心跳不会超时。键盘 WASD/QE 同样触发 <code>sendCommand()</code>。</p>
+</div>
+
+<h3>阶段 ② — FastAPI 路由层 (main.py)</h3>
+
+<div class="card">
+<div class="card-title">Step 3: HTTP 路由分发</div>
+<p>FastAPI Web 服务器（端口 9527）在 <code>main.py</code> 中注册了所有 API 端点。两个关键入口：</p>
+<div class="flow"><span class="cmt">// main.py L22-32</span>
+<span class="kw">def</span> <span class="fn">mode</span>(body: dict):
+  <span class="kw">return</span> controller.<span class="fn">set_mode</span>(body[<span class="num">'mode'</span>])
+
+<span class="kw">def</span> <span class="fn">command</span>(body: dict):
+  <span class="kw">return</span> controller.<span class="fn">command</span>(**body)
+
+ui.<span class="fn">expose_api</span>(<span class="num">'POST'</span>, <span class="num">'/api/mode'</span>, mode)
+ui.<span class="fn">expose_api</span>(<span class="num">'POST'</span>, <span class="num">'/api/command'</span>, command)</div>
+<p>路由层只做参数提取和异常包装，核心逻辑全部在 <code>Controller</code> 中。</p>
+</div>
+
+<h3 class="g">阶段 ③ — Controller 方法 (controller.py)</h3>
+
+<div class="card">
+<div class="card-title">Step 4: set_mode('policy') — 模式切换</div>
+<p><code>Controller.set_mode()</code>（L173）执行模式切换的核心逻辑：</p>
+<div class="flow"><span class="cmt">// controller.py L173-216 — 简化</span>
+<span class="kw">def</span> <span class="fn">set_mode</span>(self, mode):
+  <span class="kw">with</span> self.lock:
+    <span class="cmt">// 校验: 需要有有效的 feedback</span>
+    <span class="kw">if</span> mode <span class="kw">in</span> (<span class="num">'hold'</span>, <span class="num">'policy'</span>):
+      fb = self.<span class="fn">_require_feedback</span>(<span class="num">0</span>)  <span class="cmt">// 检查 IMU & 舵机在线</span>
+
+    self.generation += <span class="num">1</span>     <span class="cmt">// 版本号，用于丢弃过期推理结果</span>
+    self.mode = mode           <span class="cmt">// 'policy'</span>
+    self.recovery.<span class="fn">reset</span>()
+    self.policy_needs_reset = <span class="kw">True</span>
+
+    <span class="cmt">// 关键: 标记需要 ARM (首次使能)</span>
+    self.arm_pending = (fb <span class="kw">is not None</span> <span class="kw">and not</span> fb.enabled)
+
+    <span class="cmt">// 如果之前在标定/舵机调试模式，发送退出指令</span>
+    <span class="kw">if</span> previous == <span class="num">'calibrate'</span>:
+      self.bridge.<span class="fn">notify</span>(<span class="num">'duck_cal'</span>, <span class="fn">encode_cal</span>(CAL_EXIT))</div>
+<p><strong>arm_pending</strong> 是关键标志：它告诉 50Hz 策略线程在下一次 <code>step()</code> 时发送 <code>ARM</code> 命令（而非 <code>POLICY</code>），并且目标角度设为<strong>当前测量角度</strong>，避免使能瞬间关节跳变。</p>
+</div>
+
+<div class="card">
+<div class="card-title">Step 5: command() — 存储运动指令</div>
+<p><code>Controller.command()</code>（L327）只做校验和存储，不直接发送命令给 STM32：</p>
+<div class="flow"><span class="cmt">// controller.py L327-348 — 简化</span>
+<span class="kw">def</span> <span class="fn">command</span>(self, twist=None, head=None, mouth=None):
+  <span class="cmt">// 校验范围: twist=[0.4,0.3,1.0], head=[1.0]×4, mouth=[0,30]</span>
+  t = <span class="fn">values</span>(twist, [.4,.3,1.0])
+  h = <span class="fn">values</span>(head, [1.0]*4)
+  m = <span class="fn">float</span>(mouth)
+  <span class="kw">with</span> self.lock:
+    <span class="kw">if</span> self.mode <span class="kw">in</span> EXCLUSIVE_MODES:
+      <span class="kw">raise</span> ValueError(<span class="num">'motion disabled'</span>)
+    <span class="kw">if not</span> self.pick_active:
+      self.twist = t    <span class="cmt">// [vx, vy, ωz] — 写入共享变量</span>
+      self.head = h     <span class="cmt">// [4个头部角度]</span>
+      self.mouth = m    <span class="cmt">// 嘴部角度</span>
+    self.web_time = <span class="fn">time.monotonic</span>() <span class="cmt">// 心跳</span></div>
+<p>运动指令被存储在 <code>self.twist / self.head / self.mouth</code> 中，供 50Hz 策略线程在下次 <code>step()</code> 时读取。<code>self.web_time</code> 更新心跳时间戳——如果超过 1 秒没有新的 HTTP 请求，策略线程会自动清零运动指令。</p>
+</div>
+
+<h3 class="o">阶段 ④ — 50Hz 策略推理线程 (controller.step)</h3>
+
+<div class="card">
+<div class="card-title">Step 6: controller.step() — 核心推理循环</div>
+<p><code>controller.run()</code>（L622）启动一个独立的 daemon 线程 <code>policy50</code>，每 20ms 调用 <code>step()</code>。这是整个系统的核心决策点，完整流程如下：</p>
+<div class="flow"><span class="cmt">// controller.py L477-595 — step() 核心流程</span>
+
+<span class="kw">def</span> <span class="fn">step</span>(self):
+  <span class="kw">with</span> self.lock:
+    <span class="cmt">// 1. 读取最新反馈 (来自 100Hz receive 回调)</span>
+    fb, filt = self.feedback, self.filtered
+    age = <span class="fn">time.monotonic</span>() - self.rx_time
+
+    <span class="cmt">// 2. 安全检查: 反馈过期 → 自动降级</span>
+    <span class="kw">if</span> mode <span class="kw">in</span> (<span class="num">'hold'</span>,<span class="num">'policy'</span>):
+      <span class="kw">if not</span> fb <span class="kw">or</span> age > .15 <span class="kw">or not</span> fb.imu_ok:
+        self.mode = <span class="num">'shadow'</span>; self.generation += <span class="num">1</span>
+        self.arm_pending = <span class="kw">False</span>
+        <span class="cmt">// → DISARM</span>
+      <span class="kw">elif</span> <span class="fn">time.monotonic</span>() - self.web_time > <span class="num">1.0</span>:
+        self.twist = [<span class="num">0.0</span>]*<span class="num">3</span>  <span class="cmt">// Web 心跳超时 → 停止行走</span>
+
+    <span class="cmt">// 3. 恢复状态机: 根据重力倾角判断跌倒/起身</span>
+    changed = self.recovery.<span class="fn">update</span>(filt[<span class="num">'grav'</span>], now, valid)
+    self.policy_needs_reset |= changed
+    phase = self.recovery.phase  <span class="cmt">// walk / default_pose / getup</span>
+
+    <span class="cmt">// 4. 策略选择</span>
+    <span class="kw">if</span> rolling:    selected = self.roulade_policy
+    <span class="kw">elif</span> picking:  selected = self.pick_policy
+    <span class="kw">elif</span> phase == <span class="num">'walk'</span>:
+      selected = self.policy  <span class="cmt">// walk 或 roller</span>
+    <span class="kw">else</span>:
+      selected = self.getup_policy
+
+    <span class="cmt">// 5. 读取用户运动指令</span>
+    twist, head, mouth = self.twist, self.head, self.mouth
+    inferring = mode <span class="kw">in</span> (<span class="num">'shadow'</span>,<span class="num">'policy'</span>) <span class="kw">and</span> valid
+
+  <span class="cmt">// === 释放锁后执行 ONNX 推理 ===</span>
+  <span class="kw">if</span> inferring:
+    <span class="kw">with</span> self.policy_lock:
+      <span class="kw">if</span> reset_policy: selected.<span class="fn">reset_action_filter</span>()
+      <span class="cmt">// 6. ONNX 推理</span>
+      action = selected.<span class="fn">infer</span>(filt[<span class="num">'grav'</span>], filt[<span class="num">'gyro_rad'</span>],
+                           filt[<span class="num">'angles_deg'</span>], filt[<span class="num">'vels_deg'</span>],
+                           twist, head)
+      <span class="cmt">// 7. 动作 → 关节角度</span>
+      target = selected.<span class="fn">action_to_deg</span>(action)
+
+  <span class="cmt">// 8. 编码并发送命令</span>
+  <span class="kw">with</span> self.lock:
+    <span class="kw">if</span> self.generation != generation: <span class="kw">return</span> <span class="cmt">// 期间被停止</span>
+    command_mode = {<span class="num">'shadow'</span>:DISARM, <span class="num">'policy'</span>:POLICY}[mode]
+    <span class="kw">if</span> self.arm_pending:
+      command_mode = ARM
+      target = <span class="fn">list</span>(fb.angles)  <span class="cmt">// 首次使能: 用当前角度</span>
+      self.arm_pending = <span class="kw">False</span>
+    target[MOUTH_INDEX] = mouth
+    self.seq += <span class="num">1</span>
+    payload = <span class="fn">encode_command</span>(self.seq, fb.sample_us,
+                                     command_mode, target)
+    self.bridge.<span class="fn">notify</span>(<span class="num">'duck_command'</span>, payload)</div>
+</div>
+
+<div class="card">
+<div class="card-title">Step 7: ONNX 推理详解 (policy.infer)</div>
+<p><code>Policy.infer()</code>（policy.py L99）执行完整的神经网络前向传播：</p>
+<div class="flow"><span class="cmt">// policy.py L89-113 — 简化</span>
+<span class="kw">def</span> <span class="fn">infer</span>(self, grav, gyro_rad, angles_deg, vels_deg, cmd, head):
+  <span class="cmt">// 1. 构建观测向量 (61维)</span>
+  self.<span class="fn">build_obs</span>(grav, gyro_rad, angles_deg, vels_deg, cmd, head)
+  <span class="cmt">// obs[0:3]   = 陀螺角速度(rad/s)</span>
+  <span class="cmt">// obs[3:6]   = 重力向量(归一化)</span>
+  <span class="cmt">// obs[6:20]  = 14关节角度(相对home pose, rad)</span>
+  <span class="cmt">// obs[20:34] = 14关节速度(rad/s)</span>
+  <span class="cmt">// obs[34:48] = 上一步动作(14维)</span>
+  <span class="cmt">// obs[48:51] = twist [vx, vy, ωz]</span>
+  <span class="cmt">// obs[51:55] = head [4维]</span>
+  <span class="cmt">// obs[55:61] = zeros (占位)</span>
+
+  <span class="cmt">// 2. ONNX 前向传播</span>
+  action = self.session.<span class="fn">run</span>(self._outputs, self._feed)[<span class="num">0</span>]
+  <span class="cmt">// 输入: [1, 61] float32</span>
+  <span class="cmt">// 输出: [1, 14] float32 (弧度, 相对home pose)</span>
+
+  <span class="cmt">// 3. 动作低通滤波 (分三段不同 α)</span>
+  self.prev_action[:] = action
+  <span class="kw">for</span> sl, alpha <span class="kw">in</span> ((slice(<span class="num">0</span>,<span class="num">5</span>), <span class="num">0.45</span>),   <span class="cmt">// 左腿</span>
+                       (slice(<span class="num">5</span>,<span class="num">10</span>), <span class="num">0.2</span>),  <span class="cmt">// 头颈</span>
+                       (slice(<span class="num">10</span>,<span class="num">14</span>), <span class="num">0.45</span>)):<span class="cmt">// 右腿</span>
+    self._act_filt[sl] = self._act_filt[sl]*alpha + action[sl]*(<span class="num">1</span>-alpha)
+  <span class="kw">return</span> self._act_filt.<span class="fn">copy</span>()</div>
+
+<p><code>action_to_deg()</code>（rl_core.py L162）将 14 维弧度动作转换为 15 个关节角度：</p>
+<div class="flow"><span class="cmt">// rl_core.py L162-169</span>
+<span class="kw">def</span> <span class="fn">action_to_deg</span>(action, mouth_deg=<span class="num">0</span>):
+  q_deg = HOME_DEG + <span class="fn">np.rad2deg</span>(ACTION_SCALE * action)
+  <span class="cmt">// 14维 → 按 POLICY_INDEX 映射到 15 维</span>
+  targets[POLICY_INDEX] = q_deg
+  targets[MOUTH_INDEX] = <span class="fn">clip</span>(mouth_deg, <span class="num">0</span>, <span class="num">30</span>)
+  <span class="kw">return</span> targets.<span class="fn">tolist</span>()  <span class="cmt">// 15个角度(°)</span></div>
+</div>
+
+<div class="card">
+<div class="card-title">Step 8: 编码 CommandPacket 并发送</div>
+<p><code>wire.py</code> 的 <code>encode_command()</code> 将 15 个角度打包为 80 字节的二进制结构体：</p>
+<div class="flow"><span class="cmt">// wire.py L86-94</span>
+<span class="kw">def</span> <span class="fn">encode_command</span>(seq, sample_us, mode, targets, ttl_us=<span class="num">250000</span>):
+  <span class="kw">return</span> COMMAND.<span class="fn">pack</span>(
+    b<span class="num">'DQC1'</span>,        <span class="cmt">// magic 校验</span>
+    seq,            <span class="cmt">// 序列号 (单调递增)</span>
+    sample_us,      <span class="cmt">// 对应 feedback 的 sample_us</span>
+    ttl_us,         <span class="cmt">// 生存时间 250ms</span>
+    mode,           <span class="cmt">// DISARM=0/ARM=1/POLICY=2/HOLD=3</span>
+    <span class="num">0</span>, <span class="num">0</span>,         <span class="cmt">// reserved</span>
+    *targets        <span class="cmt">// 15个 float 角度</span>
+  )
+<span class="cmt">// → Bridge.notify('duck_command', 80字节 payload)</span></div>
+<p><code>Bridge.notify()</code> 将二进制 payload 包装在 MsgPack RPC 信封中，通过 Unix socket 发送给 <code>arduino-router</code>，再通过 UART 传到 STM32。</p>
+</div>
+
+<h3 class="g">阶段 ⑤ — STM32 执行层 (sketch.ino)</h3>
+
+<div class="card">
+<div class="card-title">Step 9: receiveCommand() — 接收与校验</div>
+<p>STM32 主线程的 Bridge RPC 回调 <code>receiveCommand()</code>（sketch.ino L44）接收到 80 字节 payload：</p>
+<div class="flow"><span class="cmt">// sketch.ino L44-59 — 简化</span>
+<span class="kw">static void</span> <span class="fn">receiveCommand</span>(bytes) {
+  CommandPacket cmd;
+  <span class="fn">memcpy</span>(&cmd, bytes, <span class="kw">sizeof</span>(cmd));
+  <span class="cmt">// 校验: magic=="DQC1" · mode≤HOLD · ttlUs有效</span>
+  <span class="cmt">// 校验: 15个target均为有限值</span>
+  bool valid = (memcmp(cmd.magic, <span class="num">"DQC1"</span>, <span class="num">4</span>) == <span class="num">0</span>)
+             && cmd.mode <= HOLD && cmd.ttlUs > <span class="num">0</span>;
+  <span class="kw">for</span> (i=<span class="num">0</span>; i&lt;<span class="num">15</span>; ++i)
+    valid = valid && <span class="fn">isfinite</span>(cmd.target[i]);
+
+  k_mutex_lock(&commandMu, K_FOREVER);
+  <span class="kw">if</span> (valid) { latest = cmd; pending = <span class="kw">true</span>; }
+  <span class="kw">else</span> ++invalidCommands;
+  k_mutex_unlock(&commandMu);
+}</div>
+<p>命令暂存在 <code>latest</code> 中，等待 100Hz 控制循环读取。注意此回调运行在主线程，与 <code>controlTask</code> 通过 <code>commandMu</code> 互斥锁同步。</p>
+</div>
+
+<div class="card">
+<div class="card-title">Step 10: controlTask 100Hz — 执行命令</div>
+<p><code>controlTask</code>（sketch.ino L294）在每个 10ms tick 中读取并执行命令：</p>
+<div class="flow"><span class="cmt">// sketch.ino L324-368 — 简化</span>
+<span class="cmt">// 读取最新命令</span>
+k_mutex_lock(&commandMu, K_FOREVER);
+<span class="kw">if</span> (pending) { cmd = latest; pending = <span class="kw">false</span>; }
+k_mutex_unlock(&commandMu);
+
+<span class="cmt">// 校验命令新鲜度 & 序列号</span>
+<span class="kw">if</span> (got && !busTaken) {
+  fresh = (start - cmd.sourceUs) <= MAX_SOURCE_AGE_US;  <span class="cmt">// 150ms</span>
+  ordered = (cmd.seq - acceptedSeq) > <span class="num">0</span>;
+  <span class="kw">if</span> (fresh && ordered) {
+    acceptedSeq = cmd.seq;
+    ttl = cmd.ttlUs;
+
+    <span class="cmt">// ARM 模式: 首次使能</span>
+    <span class="kw">if</span> (cmd.mode == ARM && !enabled && imu.ok)
+      enabled = <span class="kw">true</span>;  <span class="cmt">// 力矩使能!</span>
+
+    <span class="cmt">// 写入目标角度到 motors[]</span>
+    k_mutex_lock(&motorsMu, K_FOREVER);
+    <span class="kw">for</span> (i=<span class="num">0</span>; i&lt;<span class="num">15</span>; ++i)
+      motors[i].desAngleDeg = cmd.target[i];
+    k_mutex_unlock(&motorsMu);
+  }
+}
+
+<span class="cmt">// 超时检测</span>
+<span class="kw">if</span> (enabled && (start-lastCommandUs > ttl || ...))
+  enabled = <span class="kw">false</span>;  <span class="cmt">// 命令超时 → 自动禁用</span>
+
+<span class="cmt">// 写舵机目标</span>
+<span class="kw">if</span> (enabled) {
+  k_mutex_lock(&motorsMu, K_FOREVER);
+  <span class="fn">sendMotorDesPos</span>();  <span class="cmt">// 角度→编码器→SCS同步写</span>
+  k_mutex_unlock(&motorsMu);
+}
+<span class="fn">setTorqueEnable</span>(enabled); <span class="cmt">// 力矩开关</span></div>
+</div>
+
+<div class="card">
+<div class="card-title">Step 11: sendMotorDesPos() — 角度到舵机编码器</div>
+<p><code>sendMotorDesPos()</code>（scs_bus.h L125）将角度（度）转换为舵机编码器位置（0-4095），然后通过 SCS 同步写指令一次性发送给 15 个舵机：</p>
+<div class="flow"><span class="cmt">// scs_bus.h L125-132</span>
+<span class="kw">static void</span> <span class="fn">sendMotorDesPos</span>() {
+  <span class="kw">for</span> (i=<span class="num">0</span>; i&lt;<span class="num">15</span>; i++) {
+    <span class="cmt">// 角度 → 编码器位置</span>
+    pos = <span class="num">2047</span> + (desAngleDeg / <span class="num">360</span> * <span class="num">4095</span> * sign);
+    motors[i].desPos = <span class="fn">satPos</span>(pos);  <span class="cmt">// 饱和到 [0,4095]</span>
+  }
+  <span class="fn">syncWriteGoalsFromDesPos</span>();
+}
+
+<span class="cmt">// scs_bus.h L109-123 — SCS 同步写</span>
+<span class="kw">static void</span> <span class="fn">syncWriteGoalsFromDesPos</span>() {
+  <span class="cmt">// 构造 sync write 帧: 0xFE + 0x83</span>
+  <span class="cmt">// FF FF FE [len] 83 [addr=0x2A] [6] [ID1 pos1 0 0] [ID2 pos2 0 0] ...</span>
+  <span class="fn">scsWriteBuf</span>(<span class="num">0xFE</span>, <span class="num">0x83</span>, sync, ...);
+  <span class="cmt">// Serial1.write() @ 1Mbps → 15个舵机同时收到目标</span>
+}</div>
+<p>SCS 总线协议帧格式：<code>0xFF 0xFF [ID] [Length] [Function] [Data...] [~Checksum]</code>。同步写（0x83）使用广播 ID 0xFE，一条指令更新所有 15 个舵机的目标位置，总线效率最高。</p>
+</div>
+
+<div class="card">
+<div class="card-title">Step 12: 反馈回路 — STM32 → Linux → 浏览器</div>
+<p>命令执行后，controlTask 继续读取舵机反馈和 IMU 数据，组装 StatePacket 并通过 reportTask 发回 Linux：</p>
+<div class="flow"><span class="cmt">// sketch.ino L369-398 — 简化</span>
+<span class="fn">drainServoRx</span>();           <span class="cmt">// 清空残余应答</span>
+servoRxMask = <span class="num">0</span>;
+<span class="fn">readAllState</span>();           <span class="cmt">// SCS同步读 → 15个舵机位置+速度</span>
+<span class="fn">updateImu</span>();              <span class="cmt">// I2C读QMI8658 → acc+gyro</span>
+<span class="fn">parseServoRx</span>();           <span class="cmt">// 解析舵机应答</span>
+
+<span class="cmt">// 组装 StatePacket (240字节)</span>
+s.flags = imu.ok | (enabled&lt;&lt;<span class="num">1</span>) | (timedOut&lt;&lt;<span class="num">2</span>) | ...;
+s.angle[i] = motors[i].fbAngleDeg;
+s.velocity[i] = motors[i].fbVelDeg;
+s.target[i] = motors[i].desAngleDeg;
+
+<span class="cmt">// 通知 reportTask 发送</span>
+k_sem_give(&reportReady);
+
+<span class="cmt">// → reportTask: Bridge.notify('duck_state', 240B)</span></div>
+<p>Linux 端 <code>controller.receive()</code>（100Hz 回调）解码 StatePacket，经 SignalFilter 滤波后存入 <code>self.feedback / self.filtered</code>。50Hz 策略线程在下次 <code>step()</code> 时读取这些数据，形成<strong>闭环</strong>。</p>
+<p>同时，浏览器每 250ms 轮询 <code>GET /api/status</code>，获取机器人状态（关节角度、IMU、恢复阶段等）并更新 UI。</p>
+</div>
+
+<div class="note green">
+<strong>完整时序总结：</strong>用户点击按钮 → HTTP 请求（~1ms）→ Controller 存储模式/指令（~0.1ms）→ 50Hz 策略线程在下个 20ms 周期读取 → ONNX 推理（~10-20ms）→ 编码 80B 命令 → UART 传输（~0.3ms）→ STM32 receiveCommand（~0.01ms）→ 下个 10ms tick 的 controlTask 执行 → SCS 同步写（~1ms）→ 舵机执行。从用户操作到舵机动作的总延迟约 <strong>30-50ms</strong>（主要取决于策略线程的 20ms 周期 + ONNX 推理时间）。
+</div>
+
+<!-- ==================== 四、STM32 控制循环 ==================== -->
+<h2 id="stm32-loop" class="green">四、STM32 实时控制循环 (100Hz)</h2>
+
+<p>核心在 <code>controlTask()</code>，周期 <code>TICK_US = 10000µs</code>（10ms）。每个 tick 的执行流程如下：</p>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 900 640" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:900px">
+  <defs>
+    <linearGradient id="loopBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8f5ee"/><stop offset="100%" stop-color="#d4ebde"/>
+    </linearGradient>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#dc2626"/>
+    </marker>
+    <marker id="arrY" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#d97706"/>
+    </marker>
+  </defs>
+
+  <!-- 标题 -->
+  <text x="450" y="25" text-anchor="middle" fill="#059669" font-size="14" font-weight="700">controlTask() — 每 10ms (100Hz)</text>
+
+  <!-- 流程节点 -->
+  <!-- Step 1 -->
+  <rect x="50" y="50" width="220" height="42" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="160" y="68" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">① 处理 cal/servo 调试指令</text>
+  <text x="160" y="82" text-anchor="middle" fill="#8a887e" font-size="9">hostMu → applyCalOp / applyServoOp</text>
+
+  <!-- Step 2 -->
+  <rect x="50" y="110" width="220" height="42" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="160" y="128" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">② 推进标定/中位复位时序</text>
+  <text x="160" y="142" text-anchor="middle" fill="#8a887e" font-size="9">advanceCalibration / advanceServoMid</text>
+
+  <!-- Step 3 -->
+  <rect x="50" y="170" width="220" height="48" rx="8" fill="#f0f7f3" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="160" y="188" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">③ 读取最新命令 (commandMu)</text>
+  <text x="160" y="202" text-anchor="middle" fill="#8a887e" font-size="9">校验: 新鲜度 ≤150ms</text>
+  <text x="160" y="213" text-anchor="middle" fill="#8a887e" font-size="9">序列号递增 · TTL 有效</text>
+
+  <!-- Step 4 -->
+  <rect x="50" y="238" width="220" height="48" rx="8" fill="#f0f7f3" stroke="#d97706" stroke-width="1.5"/>
+  <text x="160" y="256" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">④ 超时 & 使能判定</text>
+  <text x="160" y="270" text-anchor="middle" fill="#8a887e" font-size="9">命令TTL >250ms → 禁用</text>
+  <text x="160" y="281" text-anchor="middle" fill="#8a887e" font-size="9">IMU健康 >100ms → 禁用</text>
+
+  <!-- Step 5 -->
+  <rect x="50" y="306" width="220" height="42" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="160" y="324" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">⑤ 写舵机目标 (使能时)</text>
+  <text x="160" y="338" text-anchor="middle" fill="#8a887e" font-size="9">角度→编码器→SCS同步写 (0x83)</text>
+
+  <!-- Step 6 -->
+  <rect x="50" y="366" width="220" height="42" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="160" y="384" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">⑥ 力矩使能/禁能</text>
+  <text x="160" y="398" text-anchor="middle" fill="#8a887e" font-size="9">setTorqueEnable(广播 0xFE)</text>
+
+  <!-- Step 7 -->
+  <rect x="50" y="426" width="220" height="42" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="1.5"/>
+  <text x="160" y="444" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">⑦ 读舵机状态 (同步读)</text>
+  <text x="160" y="458" text-anchor="middle" fill="#8a887e" font-size="9">readAllState() → 6字节 × 15</text>
+
+  <!-- Step 8 -->
+  <rect x="50" y="486" width="220" height="42" rx="8" fill="#f0f7f3" stroke="#0891b2" stroke-width="1.5"/>
+  <text x="160" y="504" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">⑧ 读 IMU (QMI8658)</text>
+  <text x="160" y="518" text-anchor="middle" fill="#8a887e" font-size="9">I2C 读 12 字节 · 轴重映射</text>
+
+  <!-- Step 9 -->
+  <rect x="50" y="546" width="220" height="42" rx="8" fill="#f0f7f3" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="160" y="564" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">⑨ 组装 StatePacket + 上报</text>
+  <text x="160" y="578" text-anchor="middle" fill="#8a887e" font-size="9">k_sem_give(&reportReady)</text>
+
+  <!-- 连接线 -->
+  <line x1="160" y1="92" x2="160" y2="108" stroke="#059669" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="160" y1="152" x2="160" y2="168" stroke="#059669" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="160" y1="218" x2="160" y2="236" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrY)"/>
+  <line x1="160" y1="286" x2="160" y2="304" stroke="#d97706" stroke-width="1.5" marker-end="url(#arrY)"/>
+  <line x1="160" y1="348" x2="160" y2="364" stroke="#059669" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="160" y1="408" x2="160" y2="424" stroke="#059669" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="160" y1="468" x2="160" y2="484" stroke="#059669" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="160" y1="528" x2="160" y2="544" stroke="#0891b2" stroke-width="1.5" marker-end="url(#arrY)"/>
+
+  <!-- 右侧：详细说明面板 -->
+  <!-- SCS 总线协议 -->
+  <rect x="310" y="50" width="260" height="115" rx="8" fill="#f5f0fa" stroke="#c4b4d4" stroke-width="1"/>
+  <text x="440" y="68" text-anchor="middle" fill="#d97706" font-size="11" font-weight="700">SCS 总线协议</text>
+  <text x="320" y="85" fill="#8a887e" font-size="9">Serial1 @ 1 Mbps · 15舵机 ID 10-34</text>
+  <text x="320" y="100" fill="#242521" font-size="9" font-family="monospace">帧: FF FF [ID] [Len] [Func] [Data] [~Sum]</text>
+  <text x="320" y="115" fill="#059669" font-size="9">▸ 同步写 0x83 (广播0xFE) → 目标位置</text>
+  <text x="320" y="130" fill="#059669" font-size="9">▸ 同步读 0x82 → 位置+速度 (6B×15)</text>
+  <text x="320" y="145" fill="#8a887e" font-size="9">▸ 力矩 0x03 → ADDR_TORQUE(40)</text>
+  <text x="320" y="158" fill="#8a887e" font-size="9">转换: pos = 2047 + angle/360×4095×sign</text>
+
+  <!-- IMU 详情 -->
+  <rect x="310" y="180" width="260" height="95" rx="8" fill="#e8f0f5" stroke="#a8c4d4" stroke-width="1"/>
+  <text x="440" y="198" text-anchor="middle" fill="#0891b2" font-size="11" font-weight="700">QMI8658 IMU</text>
+  <text x="320" y="215" fill="#8a887e" font-size="9">I2C @ 400kHz · 探测 0x6A/0x6B</text>
+  <text x="320" y="230" fill="#242521" font-size="9">加速度 ±2g · 陀螺 ±1024dps (32LSB/dps)</text>
+  <text x="320" y="245" fill="#242521" font-size="9">轴重映射: acc=[z,-x,-y], gyro=[-z,-x,y]</text>
+  <text x="320" y="260" fill="#8a887e" font-size="9">无IMU时每秒自动重新探测</text>
+
+  <!-- deadline 维护 -->
+  <rect x="310" y="295" width="260" height="80" rx="8" fill="#faf0f0" stroke="#d4a8a8" stroke-width="1"/>
+  <text x="440" y="313" text-anchor="middle" fill="#dc2626" font-size="11" font-weight="700">周期维护</text>
+  <text x="320" y="330" fill="#242521" font-size="9">deadline += TICK_US (10000µs)</text>
+  <text x="320" y="345" fill="#dc2626" font-size="9">超时: overruns += missed</text>
+  <text x="320" y="360" fill="#059669" font-size="9">剩余: k_sleep(K_USEC(remaining))</text>
+
+  <!-- reportTask -->
+  <rect x="310" y="395" width="260" height="125" rx="8" fill="#e8edf5" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="440" y="413" text-anchor="middle" fill="#2563eb" font-size="11" font-weight="700">reportTask (上报循环)</text>
+  <text x="320" y="430" fill="#8a887e" font-size="9">阻塞: k_sem_take(&reportReady)</text>
+  <text x="320" y="445" fill="#059669" font-size="9">▸ duck_state (240B) 每 tick 发</text>
+  <text x="320" y="460" fill="#059669" font-size="9">▸ duck_raw (38B) 标定时每tick / 平时每20帧</text>
+  <text x="320" y="475" fill="#059669" font-size="9">▸ duck_servo_reply / duck_cal_reply</text>
+  <text x="320" y="490" fill="#059669" font-size="9">▸ duck_boot_pd 每100帧</text>
+  <text x="320" y="508" fill="#dc2626" font-size="9">背压: reportDrops++ 若上一帧未消费</text>
+
+  <!-- 安全检查 -->
+  <rect x="610" y="50" width="260" height="200" rx="8" fill="#faf0f0" stroke="#d4a8a8" stroke-width="1"/>
+  <text x="740" y="68" text-anchor="middle" fill="#dc2626" font-size="11" font-weight="700">安全检查 (每 tick)</text>
+  <text x="620" y="86" fill="#242521" font-size="9">▸ 命令 TTL ≤ 250ms</text>
+  <text x="620" y="101" fill="#242521" font-size="9">  超时 → 禁用 + timedOut</text>
+  <text x="620" y="119" fill="#242521" font-size="9">▸ 源时间戳 ≤ 150ms</text>
+  <text x="620" y="134" fill="#242521" font-size="9">  超时 → 拒绝执行</text>
+  <text x="620" y="152" fill="#242521" font-size="9">▸ 序列号单调递增</text>
+  <text x="620" y="167" fill="#8a887e" font-size="9">  乱序 → invalidCommands++</text>
+  <text x="620" y="185" fill="#242521" font-size="9">▸ IMU OK 且 <50ms 有数据</text>
+  <text x="620" y="200" fill="#242521" font-size="9">  无IMU → 拒绝 ARM</text>
+  <text x="620" y="218" fill="#242521" font-size="9">▸ 调试模式独占总线</text>
+  <text x="620" y="233" fill="#8a887e" font-size="9">  CAL/SERVO_DEBUG → 禁止电机控制</text>
+  <text x="620" y="248" fill="#242521" font-size="9">▸ 健康超时 100ms → 禁用</text>
+
+  <!-- 使能逻辑 -->
+  <rect x="610" y="270" width="260" height="100" rx="8" fill="#f0f7f3" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="740" y="288" text-anchor="middle" fill="#059669" font-size="11" font-weight="700">ARM 使能条件</text>
+  <text x="620" y="306" fill="#242521" font-size="9">cmd.mode == ARM</text>
+  <text x="620" y="320" fill="#242521" font-size="9">&& !enabled (首次使能)</text>
+  <text x="620" y="334" fill="#242521" font-size="9">&& imu.ok == true</text>
+  <text x="620" y="348" fill="#242521" font-size="9">&& (start-lastImuUs) < 50ms</text>
+  <text x="620" y="362" fill="#059669" font-size="9">→ enabled = true, setRunKpKd()</text>
+
+  <!-- 命令模式 -->
+  <rect x="610" y="390" width="260" height="130" rx="8" fill="#e8edf5" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="740" y="408" text-anchor="middle" fill="#2563eb" font-size="11" font-weight="700">CommandMode 枚举</text>
+  <text x="620" y="426" fill="#dc2626" font-size="9">DISARM = 0  → 禁用力矩</text>
+  <text x="620" y="441" fill="#d97706" font-size="9">ARM = 1     → 首次使能(目标=当前角度)</text>
+  <text x="620" y="456" fill="#059669" font-size="9">POLICY = 2  → 跟踪策略输出</text>
+  <text x="620" y="471" fill="#7c3aed" font-size="9">HOLD = 3    → 保持当前位置</text>
+  <text x="620" y="495" fill="#8a887e" font-size="9">初始 ARM 使用测量角度作为目标</text>
+  <text x="620" y="510" fill="#8a887e" font-size="9">避免使能瞬间关节跳变</text>
+
+  <!-- 回环箭头 -->
+  <path d="M 160 588 Q 160 610 280 610 L 280 610 Q 300 610 300 590 L 300 70 Q 300 50 280 50 L 170 50" 
+    fill="none" stroke="#059669" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0.5"/>
+  <text x="230" y="625" text-anchor="middle" fill="#059669" font-size="9" opacity="0.6">deadline += TICK_US → 下一周期</text>
+</svg>
+</div>
+
+<!-- ==================== 四、Linux 策略循环 ==================== -->
+<h2 id="linux-loop">五、Linux 策略推理循环 (50Hz)</h2>
+
+<p>核心在 <code>Controller.run()</code> → <code>step()</code>，周期 <code>CONTROL_PERIOD = 0.02s</code>：</p>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:900px">
+  <defs>
+    <marker id="arrB" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrP" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+
+  <text x="450" y="25" text-anchor="middle" fill="#2563eb" font-size="14" font-weight="700">controller.step() — 每 20ms (50Hz)</text>
+
+  <!-- 左列流程 -->
+  <rect x="40" y="50" width="240" height="42" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="160" y="68" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">① 检查反馈新鲜度</text>
+  <text x="160" y="82" text-anchor="middle" fill="#8a887e" font-size="9">fb >150ms / IMU丢失 → 降级 shadow</text>
+
+  <rect x="40" y="110" width="240" height="42" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="160" y="128" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">② 恢复状态机 update()</text>
+  <text x="160" y="142" text-anchor="middle" fill="#8a887e" font-size="9">walk → default_pose → getup → walk</text>
+
+  <rect x="40" y="170" width="240" height="48" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="160" y="188" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">③ 策略选择</text>
+  <text x="160" y="202" text-anchor="middle" fill="#8a887e" font-size="9">roulade/pick/walk/roller/getup</text>
+  <text x="160" y="213" text-anchor="middle" fill="#8a887e" font-size="9">按 phase 和动作状态切换</text>
+
+  <rect x="40" y="238" width="240" height="55" rx="8" fill="#f5f0fa" stroke="#7c3aed" stroke-width="2"/>
+  <text x="160" y="256" text-anchor="middle" fill="#7c3aed" font-size="11" font-weight="700">④ ONNX 推理 (policy_lock)</text>
+  <text x="160" y="270" text-anchor="middle" fill="#242521" font-size="9">build_obs() → 61维观测向量</text>
+  <text x="160" y="282" text-anchor="middle" fill="#242521" font-size="9">session.run() → 14维动作(弧度)</text>
+
+  <rect x="40" y="313" width="240" height="42" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="160" y="331" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">⑤ 动作低通滤波</text>
+  <text x="160" y="345" text-anchor="middle" fill="#8a887e" font-size="9">leg α=0.45 · head α=0.2</text>
+
+  <rect x="40" y="375" width="240" height="42" rx="8" fill="#eef2fa" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="160" y="393" text-anchor="middle" fill="#242521" font-size="11" font-weight="600">⑥ action_to_deg()</text>
+  <text x="160" y="407" text-anchor="middle" fill="#8a887e" font-size="9">弧度→度 + home pose + 嘴控制</text>
+
+  <rect x="40" y="437" width="240" height="48" rx="8" fill="#f0f7f3" stroke="#059669" stroke-width="2"/>
+  <text x="160" y="455" text-anchor="middle" fill="#059669" font-size="11" font-weight="700">⑦ 编码 CommandPacket 发送</text>
+  <text x="160" y="469" text-anchor="middle" fill="#8a887e" font-size="9">Bridge.notify("duck_command")</text>
+  <text x="160" y="480" text-anchor="middle" fill="#8a887e" font-size="9">DISARM / ARM / HOLD / POLICY</text>
+
+  <!-- 连接线 -->
+  <line x1="160" y1="92" x2="160" y2="108" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrB)"/>
+  <line x1="160" y1="152" x2="160" y2="168" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrB)"/>
+  <line x1="160" y1="218" x2="160" y2="236" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrB)"/>
+  <line x1="160" y1="293" x2="160" y2="311" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrP)"/>
+  <line x1="160" y1="355" x2="160" y2="373" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrB)"/>
+  <line x1="160" y1="417" x2="160" y2="435" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arrB)"/>
+
+  <!-- 右侧：观测向量 -->
+  <rect x="340" y="50" width="250" height="160" rx="8" fill="#f5f0fa" stroke="#c4b4d4" stroke-width="1"/>
+  <text x="465" y="68" text-anchor="middle" fill="#7c3aed" font-size="11" font-weight="700">观测向量 (61维)</text>
+  <text x="350" y="86" fill="#0891b2" font-size="9" font-family="monospace">obs[0:3]   = gyro_rad (3)</text>
+  <text x="350" y="101" fill="#0891b2" font-size="9" font-family="monospace">obs[3:6]   = gravity   (3)</text>
+  <text x="350" y="116" fill="#059669" font-size="9" font-family="monospace">obs[6:20]  = joint_pos (14)</text>
+  <text x="350" y="131" fill="#059669" font-size="9" font-family="monospace">obs[20:34] = joint_vel (14)</text>
+  <text x="350" y="146" fill="#d97706" font-size="9" font-family="monospace">obs[34:48] = prev_act  (14)</text>
+  <text x="350" y="161" fill="#2563eb" font-size="9" font-family="monospace">obs[48:51] = twist      (3)</text>
+  <text x="350" y="176" fill="#2563eb" font-size="9" font-family="monospace">obs[51:55] = head       (4)</text>
+  <text x="350" y="191" fill="#8a887e" font-size="9" font-family="monospace">obs[55:61] = zeros      (6)</text>
+  <text x="350" y="206" fill="#8a887e" font-size="8">关节按 POLICY_IDS 重排: 10-14,30-33,20-24</text>
+
+  <!-- 信号滤波 -->
+  <rect x="340" y="230" width="250" height="120" rx="8" fill="#e8f0f5" stroke="#a8c4d4" stroke-width="1"/>
+  <text x="465" y="248" text-anchor="middle" fill="#0891b2" font-size="11" font-weight="700">信号滤波 (SignalFilter)</text>
+  <text x="350" y="266" fill="#242521" font-size="9">重力估计 (ImuFilter):</text>
+  <text x="350" y="280" fill="#8a887e" font-size="9">  陀螺积分预测 + 加速度修正</text>
+  <text x="350" y="294" fill="#8a887e" font-size="9">  互补滤波 τ=0.3s</text>
+  <text x="350" y="312" fill="#242521" font-size="9">陀螺平滑: α=0.5 (100Hz)</text>
+  <text x="350" y="326" fill="#242521" font-size="9">速度平滑: α=0.4 (100Hz)</text>
+  <text x="350" y="340" fill="#8a887e" font-size="8">滤波时钟锁在 host 接收时刻</text>
+
+  <!-- 策略模型表 -->
+  <rect x="340" y="370" width="250" height="170" rx="8" fill="#e8edf5" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="465" y="388" text-anchor="middle" fill="#2563eb" font-size="11" font-weight="700">ONNX 策略模型</text>
+  <text x="350" y="406" fill="#059669" font-size="9">▸ xgoduck_walk.onnx    — 普通行走</text>
+  <text x="350" y="421" fill="#d97706" font-size="9">▸ xgoduck_roller.onnx   — 轮式行走</text>
+  <text x="350" y="436" fill="#7c3aed" font-size="9">▸ xgoduck_getup.onnx    — 跌倒起身</text>
+  <text x="350" y="451" fill="#0891b2" font-size="9">▸ xgoduck_pick.onnx     — 拾取(4s周期)</text>
+  <text x="350" y="466" fill="#dc2626" font-size="9">▸ xgoduck_roulade.onnx  — 翻滚(1.9s)</text>
+  <text x="350" y="488" fill="#8a887e" font-size="9">输入: [1, 61] float32</text>
+  <text x="350" y="502" fill="#8a887e" font-size="9">输出: [1, 14] float32 (弧度)</text>
+  <text x="350" y="516" fill="#8a887e" font-size="9">线程: 1 · CPUExecutionProvider</text>
+  <text x="350" y="530" fill="#8a887e" font-size="8">空闲时 _keep_warm_idle() 轮流预热</text>
+
+  <!-- 右列：模式映射 -->
+  <rect x="620" y="50" width="250" height="180" rx="8" fill="#eef2fa" stroke="#bcc4d4" stroke-width="1"/>
+  <text x="745" y="68" text-anchor="middle" fill="#2563eb" font-size="11" font-weight="700">模式 → CommandMode 映射</text>
+  <text x="630" y="88" fill="#8a887e" font-size="9">shadow → DISARM (力矩关, 仅推理)</text>
+  <text x="630" y="106" fill="#dc2626" font-size="9">off    → DISARM</text>
+  <text x="630" y="124" fill="#7c3aed" font-size="9">hold   → HOLD (保持当前位置)</text>
+  <text x="630" y="142" fill="#059669" font-size="9">policy → POLICY (跟踪策略)</text>
+  <text x="630" y="160" fill="#d97706" font-size="9">calibrate → 独占总线 (HOST_CAL)</text>
+  <text x="630" y="178" fill="#d97706" font-size="9">servo_debug → 独占总线 (HOST_SERVO)</text>
+  <text x="630" y="200" fill="#8a887e" font-size="9">arm_pending 时:</text>
+  <text x="630" y="214" fill="#8a887e" font-size="9">  command_mode = ARM</text>
+  <text x="630" y="226" fill="#8a887e" font-size="9">  target = 当前测量角度</text>
+
+  <!-- Web 心跳 -->
+  <rect x="620" y="250" width="250" height="80" rx="8" fill="#faf0f0" stroke="#d4a8a8" stroke-width="1"/>
+  <text x="745" y="268" text-anchor="middle" fill="#dc2626" font-size="11" font-weight="700">心跳保护</text>
+  <text x="630" y="286" fill="#242521" font-size="9">Web 心跳 >1s → 清零运动指令</text>
+  <text x="630" y="300" fill="#242521" font-size="9">  (保持力矩, 停止行走)</text>
+  <text x="630" y="318" fill="#242521" font-size="9">调试心跳 >2s → 自动退出</text>
+
+  <!-- 回环 -->
+  <path d="M 160 485 Q 160 520 300 520 L 300 520 Q 320 520 320 500 L 320 70 Q 320 50 300 50 L 170 50" 
+    fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrB)" opacity="0.4"/>
+  <text x="230" y="540" text-anchor="middle" fill="#2563eb" font-size="9" opacity="0.5">deadline += CONTROL_PERIOD → 下一周期</text>
+</svg>
+</div>
+
+<!-- ==================== 五、恢复状态机 ==================== -->
+<h2 id="recovery" class="orange">六、跌倒恢复状态机</h2>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px">
+  <defs>
+    <marker id="arrG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#059669"/>
+    </marker>
+    <marker id="arrO2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#d97706"/>
+    </marker>
+    <marker id="arrP2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+
+  <!-- walk 状态 -->
+  <rect x="40" y="100" width="140" height="60" rx="12" fill="#e8f5ee" stroke="#059669" stroke-width="2"/>
+  <text x="110" y="125" text-anchor="middle" fill="#059669" font-size="14" font-weight="700">walk</text>
+  <text x="110" y="142" text-anchor="middle" fill="#8a887e" font-size="9">正常行走</text>
+  <text x="110" y="154" text-anchor="middle" fill="#8a887e" font-size="9">walk/roller 策略</text>
+
+  <!-- default_pose -->
+  <rect x="280" y="100" width="140" height="60" rx="12" fill="#faf5ed" stroke="#d97706" stroke-width="2"/>
+  <text x="350" y="125" text-anchor="middle" fill="#d97706" font-size="14" font-weight="700">default_pose</text>
+  <text x="350" y="142" text-anchor="middle" fill="#8a887e" font-size="9">保持默认姿态</text>
+  <text x="350" y="154" text-anchor="middle" fill="#8a887e" font-size="9">动作清零 1s</text>
+
+  <!-- getup -->
+  <rect x="520" y="100" width="140" height="60" rx="12" fill="#f5f0fa" stroke="#7c3aed" stroke-width="2"/>
+  <text x="590" y="125" text-anchor="middle" fill="#7c3aed" font-size="14" font-weight="700">getup</text>
+  <text x="590" y="142" text-anchor="middle" fill="#8a887e" font-size="9">起身恢复</text>
+  <text x="590" y="154" text-anchor="middle" fill="#8a887e" font-size="9">getup 策略</text>
+
+  <!-- 转换条件 -->
+  <!-- walk → default_pose -->
+  <line x1="180" y1="120" x2="278" y2="120" stroke="#dc2626" stroke-width="2" marker-end="url(#arrO2)"/>
+  <rect x="185" y="75" width="90" height="35" rx="5" fill="#faf0f0" stroke="#d4a8a8" stroke-width="1"/>
+  <text x="230" y="88" text-anchor="middle" fill="#dc2626" font-size="9" font-weight="600">倾角 > 55°</text>
+  <text x="230" y="100" text-anchor="middle" fill="#dc2626" font-size="9" font-weight="600">持续 0.15s</text>
+
+  <!-- default_pose → getup -->
+  <line x1="420" y1="120" x2="518" y2="120" stroke="#d97706" stroke-width="2" marker-end="url(#arrP2)"/>
+  <rect x="430" y="75" width="80" height="35" rx="5" fill="#faf5ed" stroke="#d4c4a4" stroke-width="1"/>
+  <text x="470" y="88" text-anchor="middle" fill="#d97706" font-size="9" font-weight="600">保持 1.0s</text>
+  <text x="470" y="100" text-anchor="middle" fill="#d97706" font-size="9" font-weight="600">后切换</text>
+
+  <!-- getup → walk -->
+  <path d="M 590 160 Q 590 220 350 220 Q 110 220 110 162" fill="none" stroke="#059669" stroke-width="2" marker-end="url(#arrG)"/>
+  <rect x="250" y="210" width="200" height="30" rx="5" fill="#e8f5ee" stroke="#a8c8b8" stroke-width="1"/>
+  <text x="350" y="223" text-anchor="middle" fill="#059669" font-size="9" font-weight="600">倾角 < 15° 持续 1.0s</text>
+  <text x="350" y="235" text-anchor="middle" fill="#059669" font-size="9" font-weight="600">→ 恢复行走</text>
+
+  <!-- 倾角计算说明 -->
+  <rect x="40" y="20" width="620" height="40" rx="8" fill="#edeae3" stroke="#d8d4ca" stroke-width="1"/>
+  <text x="350" y="38" text-anchor="middle" fill="#8a887e" font-size="10">倾角 = acos(-gravity[2] / |gravity|) · 基于 ImuFilter 估计的重力向量</text>
+  <text x="350" y="52" text-anchor="middle" fill="#8a887e" font-size="9">0° = 完全直立 · 90° = 完全倒下 · 50Hz 更新</text>
+
+  <!-- 脉冲动画 -->
+  <circle cx="230" cy="120" r="4" fill="#dc2626" class="pulse"/>
+  <circle cx="470" cy="120" r="4" fill="#d97706" class="pulse"/>
+  <circle cx="350" cy="220" r="4" fill="#059669" class="pulse"/>
+</svg>
+</div>
+
+<!-- ==================== 六、安全机制 ==================== -->
+<h2 id="safety" class="purple">七、安全机制总结</h2>
+
+<div class="grid2">
+<div class="card">
+<div class="card-title">STM32 侧 (硬件保护)</div>
+<table>
+<tr><th>机制</th><th>阈值</th><th>动作</th></tr>
+<tr><td>命令 TTL</td><td>250ms</td><td>禁用力矩 + timedOut</td></tr>
+<tr><td>源时间戳</td><td>150ms</td><td>拒绝执行该命令</td></tr>
+<tr><td>序列号</td><td>必须递增</td><td>乱序 → invalidCommands++</td></tr>
+<tr><td>IMU 健康</td><td>100ms</td><td>无 IMU 数据 → 禁用</td></tr>
+<tr><td>IMU 使能门</td><td>50ms</td><td>ARM 时必须有新鲜 IMU</td></tr>
+<tr><td>总线独占</td><td>CAL/SERVO</td><td>禁止正常电机控制</td></tr>
+<tr><td>deadline 超时</td><td>—</td><td>overruns++ + 补偿跳周期</td></tr>
+<tr><td>上报背压</td><td>—</td><td>reportTask 未消费 → reportDrops++</td></tr>
+</table>
+</div>
+
+<div class="card">
+<div class="card-title">Linux 侧 (软件保护)</div>
+<table>
+<tr><th>机制</th><th>阈值</th><th>动作</th></tr>
+<tr><td>反馈过期</td><td>150ms</td><td>降级 shadow (DISARM)</td></tr>
+<tr><td>IMU 丢失</td><td>—</td><td>降级 shadow</td></tr>
+<tr><td>Web 心跳</td><td>1s</td><td>清零运动指令, 保持力矩</td></tr>
+<tr><td>调试心跳</td><td>2s</td><td>自动退出标定/舵机调试</td></tr>
+<tr><td>generation 校验</td><td>—</td><td>ONNX 期间收到停止 → 丢弃过期动作</td></tr>
+<tr><td>序列回绕</td><td>gap > 2³¹</td><td>全状态重置</td></tr>
+<tr><td>滤波器复位</td><td>gap > 0.1s</td><td>重力/陀螺/速度滤波器重置</td></tr>
+<tr><td>异常捕获</td><td>—</td><td>step() 异常 → mode='off'</td></tr>
+</table>
+</div>
+</div>
+
+<div class="card">
+<div class="card-title">关键设计思想</div>
+<ul>
+<li><strong>频率分层</strong>：STM32 以 100Hz 保证硬件实时性（舵机同步读写 + IMU），Linux 以 50Hz 做策略推理（ONNX 单线程约 10-20ms），两者解耦，互不阻塞</li>
+<li><strong>安全优先</strong>：多层超时保护——命令 TTL、源时间戳、IMU 健康检查、Web 心跳、MCU watchdog，任何一层异常都自动 DISARM</li>
+<li><strong>无锁尽量少锁</strong>：STM32 用 Zephyr mutex 保护共享缓冲，Linux 用 RLock；策略推理在 <code>policy_lock</code> 内执行避免阻塞 100Hz 接收</li>
+<li><strong>二进制 ABI 零拷贝</strong>：packed struct + magic 校验 + <code>static_assert</code> 大小检查，Python 端用对应 <code>struct.Struct</code> 格式串，两端 ABI 严格对齐</li>
+<li><strong>有界帧解析</strong>：自定义 <code>duckMsgpackFrame()</code> 在 RPClite 层之前做无分配、有界的 MsgPack 完整帧检测，杜绝部分数据导致的内存安全问题</li>
+<li><strong>预热机制</strong>：空闲时 <code>_keep_warm_idle()</code> 轮流预热非活跃 ONNX session，避免策略切换时的冷启动延迟</li>
+<li><strong>ARM 平滑过渡</strong>：首次 ARM 使能时，目标角度设为当前测量角度而非策略输出，避免使能瞬间关节跳变</li>
+</ul>
+</div>
+
+<div class="card" style="text-align:center;padding:24px">
+<p style="color:var(--muted);font-size:.85rem;margin-bottom:8px">XGO Duck Runtime · Arduino Uno Q · STM32 + Linux 双核架构</p>
+<p style="color:var(--muted);font-size:.8rem">基于 Microduck by Pollen Robotics · 100Hz 硬件回路 + 50Hz 策略推理</p>
+</div>
+
+</div>
+</body>
+</html>
