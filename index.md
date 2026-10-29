@@ -79,6 +79,7 @@ OpenStack Bare Metal Management System. [https://github.com/openstack/ironic](ht
 - [vLLM 社区近期 100 个未关闭重要 Issues 分析](posts/vllm_community_issues_analysis.md)
 - [XgoDuck RL — 代码实现、数学原理与训练过程分析](posts/xgoduck_rl_analysis.html)
 - [XGO Duck — 双核通信与控制循环分析](posts/architecture.html)
+- [CUDA 并行编程完全指南 — 交互式电子书](cuda-ebook/)
 
 ### Social Media
 

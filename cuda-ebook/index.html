@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUDA 并行编程完全指南 — 交互式电子书</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --text:#24292f; --muted:#57606a;
+  --accent:#76b900; --accent-dark:#5a8f00; --border:#d8dee4;
+  --code-bg:#1e2530; --code-text:#e6edf3; --sidebar-w:290px;
+  --gold:#b08800; --blue:#0969da; --purple:#8250df;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.8;font-size:15.5px}
+/* ===== 顶栏 ===== */
+header{position:fixed;top:0;left:0;right:0;height:58px;background:rgba(255,255,255,.92);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--border);z-index:100;
+  display:flex;align-items:center;padding:0 22px;gap:14px}
+header .logo{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#76b900,#3d6400);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex:none}
+header h1{font-size:17px;font-weight:700;white-space:nowrap}
+header h1 .sub{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
+header .spacer{flex:1}
+header .hint{font-size:12.5px;color:var(--muted);white-space:nowrap}
+#progress{position:fixed;top:58px;left:0;height:3px;background:var(--accent);width:0;z-index:101;transition:width .1s}
+/* ===== 侧栏 ===== */
+aside{position:fixed;top:58px;left:0;bottom:0;width:var(--sidebar-w);overflow-y:auto;
+  background:var(--card);border-right:1px solid var(--border);padding:18px 12px 40px;z-index:90}
+aside::-webkit-scrollbar{width:5px} aside::-webkit-scrollbar-thumb{background:#c8cdd4;border-radius:3px}
+.toc-group{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:16px 8px 6px;text-transform:uppercase}
+.toc-item{display:flex;align-items:baseline;gap:7px;padding:5px 10px;border-radius:6px;cursor:pointer;
+  color:var(--text);text-decoration:none;font-size:13.5px;line-height:1.45;transition:background .15s}
+.toc-item:hover{background:#f0f3f5}
+.toc-item.active{background:#eef7dd;color:var(--accent-dark);font-weight:600}
+.toc-item .no{color:#9aa4ae;font-size:11.5px;flex:none;min-width:26px;text-align:right}
+/* ===== 内容区 ===== */
+main{margin-left:var(--sidebar-w);padding:84px 28px 60px;max-width:1080px}
+.hero{padding:26px 30px;background:linear-gradient(120deg,#16210c 0%,#24380f 55%,#324d12 100%);
+  color:#fff;border-radius:14px;margin-bottom:30px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;
+  background:radial-gradient(circle,rgba(118,185,0,.35),transparent 70%)}
+.hero h2{font-size:26px;margin-bottom:10px}
+.hero p{font-size:14.5px;opacity:.92;max-width:640px}
+.hero .stats{display:flex;gap:26px;margin-top:16px;flex-wrap:wrap}
+.hero .stats div{font-size:13px;opacity:.85}
+.hero .stats b{display:block;font-size:21px;color:#a3e635;opacity:1}
+section.chapter{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:26px 30px;margin-bottom:22px;scroll-margin-top:74px}
+section.chapter h2{font-size:19.5px;margin-bottom:4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+section.chapter h2 .chno{font-size:12.5px;font-weight:700;color:#fff;background:var(--accent);
+  border-radius:6px;padding:2px 9px;flex:none}
+section.chapter h3{font-size:16px;margin:18px 0 8px;padding-left:10px;border-left:3px solid var(--accent)}
+section.chapter h4{font-size:14.5px;margin:14px 0 6px;color:var(--accent-dark)}
+section.chapter h5{font-size:14px;margin:12px 0 5px;color:var(--muted)}
+section.chapter p{margin:8px 0;font-size:14.5px}
+section.chapter ul,section.chapter ol{padding-left:22px;margin:8px 0}
+section.chapter li{margin:4px 0;font-size:14.5px}
+section.chapter li b{color:var(--accent-dark)}
+section.chapter a{color:var(--blue);text-decoration:none}
+section.chapter a:hover{text-decoration:underline}
+/* 表格 */
+table{border-collapse:collapse;margin:12px 0;font-size:13.5px;width:100%;display:block;overflow-x:auto}
+th{background:#f0f5e4;color:#3d4a20;font-weight:600;text-align:left;padding:7px 12px;
+  border:1px solid var(--border);white-space:nowrap}
+td{padding:7px 12px;border:1px solid var(--border);vertical-align:top}
+tr:nth-child(even) td{background:#fafbfc}
+/* 图片与图注 */
+figure{margin:18px 0;text-align:center}
+figure img{max-width:100%;border-radius:8px;border:1px solid var(--border)}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.6}
+.capno{font-weight:700;color:var(--accent-dark)}
+.table-fig{margin:18px 0}
+.table-fig table{margin:0}
+/* 代码块 */
+pre{background:var(--code-bg);color:var(--code-text);border-radius:10px;padding:16px 18px;
+  overflow-x:auto;font-size:13px;line-height:1.6;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace}
+pre code{background:none;padding:0;color:inherit}
+.code-caption{font-size:12.5px;color:#8b949e;margin-bottom:6px;padding:0 18px;padding-bottom:4px;
+  border-bottom:1px solid #33485f;background:var(--code-bg);border-radius:10px 10px 0 0}
+code.inline{background:#eef1f4;border-radius:4px;padding:1.5px 6px;font-size:13px;
+  font-family:"SF Mono",Menlo,Consolas,monospace;color:#1f2328}
+/* 数学 */
+.math{font-family:Georgia,"Times New Roman",serif;font-style:italic}
+.math-block{display:block;text-align:center;margin:14px auto;padding:10px 16px;
+  background:#f6f8fa;border-radius:6px;font-family:Georgia,serif;font-style:italic;
+  font-size:15px;overflow-x:auto}
+.cases{display:inline-block;text-align:left}
+.cases>div{padding:1px 0}
+/* 引用 / 定义列表 */
+blockquote{border-left:3px solid var(--accent);margin:12px 0;padding:8px 16px;
+  background:#f6f8fa;border-radius:0 6px 6px 0}
+blockquote p{margin:4px 0}
+dl{margin:10px 0}
+dt{font-weight:700;color:var(--accent-dark);margin-top:8px}
+dd{margin:2px 0 8px 18px}
+.center{text-align:center;margin:12px 0}
+/* 动画卡片 */
+.anim-box{background:#0d1520;border-radius:12px;padding:14px;margin:18px 0;color:#dbe4ee}
+.anim-box .anim-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.anim-box .anim-title{font-size:13px;font-weight:700;color:#a3e635;letter-spacing:.3px}
+.anim-box .anim-desc{font-size:12px;color:#8fa3b8}
+.anim-box button{background:#1c2b3f;border:1px solid #33485f;color:#cfe3f5;font-size:12px;
+  padding:4px 14px;border-radius:6px;cursor:pointer;transition:all .15s}
+.anim-box button:hover{background:#2a3f59;border-color:#76b900;color:#fff}
+.anim-box canvas{width:100%;height:230px;display:block;border-radius:8px;background:#0a1119}
+/* 提示框 */
+.note{background:#fff8e6;border-left:4px solid #e3b341;border-radius:6px;padding:10px 14px;
+  font-size:13.5px;margin:10px 0}
+.tip{background:#eef7dd;border-left:4px solid #76b900;border-radius:6px;padding:10px 14px;
+  font-size:13.5px;margin:10px 0}
+/* 回到顶部 */
+#toTop{position:fixed;right:22px;bottom:22px;width:40px;height:40px;border-radius:50%;
+  background:var(--accent);color:#fff;border:none;font-size:18px;cursor:pointer;display:none;
+  box-shadow:0 3px 12px rgba(118,185,0,.4);z-index:99}
+footer{text-align:center;color:var(--muted);font-size:12.5px;padding:26px 0 40px;margin-left:var(--sidebar-w)}
+/* 响应式 */
+@media(max-width:960px){
+  aside{display:none}
+  main{margin-left:0;padding:74px 14px 40px}
+  footer{margin-left:0}
+  header .hint{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CU</div>
+  <h1>CUDA 并行编程完全指南<span class="sub">54 章 · 交互式电子书 · 完整正文 + HTML5 动画演示</span></h1>
+  <div class="spacer"></div>
+  <div class="hint">动画标注 <span style="color:var(--accent);font-weight:700">▶ 可交互</span>，点击按钮播放</div>
+</header>
+<div id="progress"></div>
+
+<aside id="toc">
+  <div class="toc-group">第一部分 · GPU 硬件基础</div>
+  <a class="toc-item" href="#ch1"><span class="no">1</span>GPU Vs CPU</a>
+  <a class="toc-item" href="#ch2"><span class="no">2</span>NVIDIA 历史</a>
+  <a class="toc-item" href="#ch3"><span class="no">3</span>GPU架构与代系关系</a>
+  <a class="toc-item" href="#ch4"><span class="no">4</span>如何识别GPU架构与代际</a>
+  <a class="toc-item" href="#ch5"><span class="no">5</span>GPU 和 GPU 芯片</a>
+  <a class="toc-item" href="#ch6"><span class="no">6</span>各架构对应的芯片型号</a>
+  <a class="toc-item" href="#ch7"><span class="no">7</span>NVIDIA GPU 架构历史</a>
+  <a class="toc-item" href="#ch8"><span class="no">8</span>核心对比参数</a>
+  <a class="toc-item" href="#ch9"><span class="no">9</span>半精度、单精度与双精度</a>
+  <a class="toc-item" href="#ch10"><span class="no">10</span>GPU 计算能力</a>
+  <a class="toc-item" href="#ch11"><span class="no">11</span>如何阅读 GPU 技术白皮书</a>
+  <a class="toc-item" href="#ch12"><span class="no">12</span>Volta 架构白皮书阅读</a>
+
+  <div class="toc-group">第二部分 · CUDA 入门与工具包</div>
+  <a class="toc-item" href="#ch13"><span class="no">13</span>CUDA 工具包概述</a>
+  <a class="toc-item" href="#ch14"><span class="no">14</span>Linux 安装 CUDA 工具包</a>
+  <a class="toc-item" href="#ch15"><span class="no">15</span>硬件与软件层级结构</a>
+  <a class="toc-item" href="#ch16"><span class="no">16</span>第一个 CUDA 项目</a>
+  <a class="toc-item" href="#ch17"><span class="no">17</span>Linux 编译运行 CUDA 程序</a>
+  <a class="toc-item" href="#ch18"><span class="no">18</span>线程束 ID（Warp ID）</a>
+  <a class="toc-item" href="#ch19"><span class="no">19</span>向量加法讲解</a>
+
+  <div class="toc-group">第三部分 · 向量加法实战</div>
+  <a class="toc-item" href="#ch20"><span class="no">20</span>向量加法扩展</a>
+  <a class="toc-item" href="#ch21"><span class="no">21</span>大规模向量加法</a>
+
+  <div class="toc-group">第四部分 · 性能分析与工具</div>
+  <a class="toc-item" href="#ch22"><span class="no">22</span>运行时 API 与设备属性</a>
+  <a class="toc-item" href="#ch23"><span class="no">23</span>nvidia-smi 详解</a>
+  <a class="toc-item" href="#ch24"><span class="no">24</span>占用率与延迟隐藏</a>
+  <a class="toc-item" href="#ch25"><span class="no">25</span>每 SM 活跃线程块</a>
+  <a class="toc-item" href="#ch26"><span class="no">26</span>Nsight Compute 入门</a>
+  <a class="toc-item" href="#ch27"><span class="no">27</span>NVIDIA 全系性能分析工具</a>
+  <a class="toc-item" href="#ch28"><span class="no">28</span>错误检查 API 详解</a>
+  <a class="toc-item" href="#ch29"><span class="no">29</span>命令行 Nsight Compute</a>
+  <a class="toc-item" href="#ch30"><span class="no">30</span>图形化 Nsight Compute</a>
+  <a class="toc-item" href="#ch31"><span class="no">31</span>性能分析方法论</a>
+
+  <div class="toc-group">第五部分 · 并行编程技术</div>
+  <a class="toc-item" href="#ch32"><span class="no">32</span>非 2 幂向量加法</a>
+  <a class="toc-item" href="#ch33"><span class="no">33</span>二维线程块矩阵加法</a>
+  <a class="toc-item" href="#ch34"><span class="no">34</span>L1 缓存命中率为零</a>
+  <a class="toc-item" href="#ch35"><span class="no">35</span>共享内存技术详解</a>
+  <a class="toc-item" href="#ch36"><span class="no">36</span>Visual Studio 调试技巧</a>
+  <a class="toc-item" href="#ch36x"><span class="no">36.1</span>线程束分化</a>
+  <a class="toc-item" href="#ch37"><span class="no">37</span>向量归约（基准版）</a>
+  <a class="toc-item" href="#ch38"><span class="no">38</span>向量归约代码解析</a>
+  <a class="toc-item" href="#ch39"><span class="no">39</span>向量归约优化</a>
+  <a class="toc-item" href="#ch40"><span class="no">40</span>竞态条件与调试</a>
+  <a class="toc-item" href="#ch41"><span class="no">41</span>线程利用率优化</a>
+  <a class="toc-item" href="#ch42"><span class="no">42</span>GPU 内存层级回顾</a>
+  <a class="toc-item" href="#ch43"><span class="no">43</span>洗牌操作（Shuffle）</a>
+
+  <div class="toc-group">第六部分 · 矩阵乘法与张量核心</div>
+  <a class="toc-item" href="#ch44"><span class="no">44</span>屋顶线模型分析</a>
+  <a class="toc-item" href="#ch45"><span class="no">45</span>矩阵乘法基础实现</a>
+  <a class="toc-item" href="#ch46"><span class="no">46</span>共享内存分块优化</a>
+  <a class="toc-item" href="#ch47"><span class="no">47</span>Float4 向量化优化</a>
+  <a class="toc-item" href="#ch48"><span class="no">48</span>矩阵乘法分块技术</a>
+  <a class="toc-item" href="#ch49"><span class="no">49</span>张量核心技术详解</a>
+  <a class="toc-item" href="#ch50"><span class="no">50</span>张量核心实战评估</a>
+  <a class="toc-item" href="#ch51"><span class="no">51</span>WMMA API 编程</a>
+  <a class="toc-item" href="#ch52"><span class="no">52</span>WMMA API 实战案例</a>
+  <a class="toc-item" href="#ch53"><span class="no">53</span>cuBLAS 调用张量核心</a>
+</aside>
+
+<main>
+<div class="hero">
+  <h2>CUDA 并行编程完全指南</h2>
+  <p>从 GPU 硬件架构到张量核心实战，覆盖 CUDA 编程的完整知识体系。本文档将 54 章完整正文组织为交互式电子书，并为关键概念配备 HTML5 Canvas 动画演示——并行执行、线程束调度、归约树、共享内存分块等抽象概念一目了然。</p>
+  <div class="stats">
+    <div><b>54</b>章节</div>
+    <div><b>6</b>大部分</div>
+    <div><b>7</b>个交互动画</div>
+    <div><b>174</b>张插图</div>
+  </div>
+</div>
+<!-- 章节内容由 chapters/*.js 动态注入 -->
+</main>
+
+<button id="toTop" title="回到顶部">↑</button>
+<footer>CUDA 并行编程完全指南 · 交互式电子书 · 内容基于同名 LaTeX 教程完整转换</footer>
+
+<!-- 章节数据（按顺序同步加载，file:// 也可用） -->
+<script src="chapters/ch1.js"></script>
+<script src="chapters/ch2.js"></script>
+<script src="chapters/ch3.js"></script>
+<script src="chapters/ch4.js"></script>
+<script src="chapters/ch5.js"></script>
+<script src="chapters/ch6.js"></script>
+<script src="chapters/ch7.js"></script>
+<script src="chapters/ch8.js"></script>
+<script src="chapters/ch9.js"></script>
+<script src="chapters/ch10.js"></script>
+<script src="chapters/ch11.js"></script>
+<script src="chapters/ch12.js"></script>
+<script src="chapters/ch13.js"></script>
+<script src="chapters/ch14.js"></script>
+<script src="chapters/ch15.js"></script>
+<script src="chapters/ch16.js"></script>
+<script src="chapters/ch17.js"></script>
+<script src="chapters/ch18.js"></script>
+<script src="chapters/ch19.js"></script>
+<script src="chapters/ch20.js"></script>
+<script src="chapters/ch21.js"></script>
+<script src="chapters/ch22.js"></script>
+<script src="chapters/ch23.js"></script>
+<script src="chapters/ch24.js"></script>
+<script src="chapters/ch25.js"></script>
+<script src="chapters/ch26.js"></script>
+<script src="chapters/ch27.js"></script>
+<script src="chapters/ch28.js"></script>
+<script src="chapters/ch29.js"></script>
+<script src="chapters/ch30.js"></script>
+<script src="chapters/ch31.js"></script>
+<script src="chapters/ch32.js"></script>
+<script src="chapters/ch33.js"></script>
+<script src="chapters/ch34.js"></script>
+<script src="chapters/ch35.js"></script>
+<script src="chapters/ch36.js"></script>
+<script src="chapters/ch36x.js"></script>
+<script src="chapters/ch37.js"></script>
+<script src="chapters/ch38.js"></script>
+<script src="chapters/ch39.js"></script>
+<script src="chapters/ch40.js"></script>
+<script src="chapters/ch41.js"></script>
+<script src="chapters/ch42.js"></script>
+<script src="chapters/ch43.js"></script>
+<script src="chapters/ch44.js"></script>
+<script src="chapters/ch45.js"></script>
+<script src="chapters/ch46.js"></script>
+<script src="chapters/ch47.js"></script>
+<script src="chapters/ch48.js"></script>
+<script src="chapters/ch49.js"></script>
+<script src="chapters/ch50.js"></script>
+<script src="chapters/ch51.js"></script>
+<script src="chapters/ch52.js"></script>
+<script src="chapters/ch53.js"></script>
+
+<script>
+/* ============ 章节顺序 ============ */
+const ORDER=["ch1","ch2","ch3","ch4","ch5","ch6","ch7","ch8","ch9","ch10","ch11","ch12",
+"ch13","ch14","ch15","ch16","ch17","ch18","ch19","ch20","ch21","ch22","ch23","ch24","ch25",
+"ch26","ch27","ch28","ch29","ch30","ch31","ch32","ch33","ch34","ch35","ch36","ch36x","ch37",
+"ch38","ch39","ch40","ch41","ch42","ch43","ch44","ch45","ch46","ch47","ch48","ch49","ch50",
+"ch51","ch52","ch53"];
+
+/* ============ 阅读进度条 + 回到顶部 ============ */
+const progress=document.getElementById('progress');
+addEventListener('scroll',()=>{
+  const h=document.documentElement;
+  progress.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';
+  const btn=document.getElementById('toTop');
+  btn.style.display=h.scrollTop>600?'block':'none';
+});
+document.getElementById('toTop').onclick=()=>scrollTo({top:0,behavior:'smooth'});
+
+/* ============ Canvas 动画引擎 ============ */
+function setupCanvas(cv){
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth,h=cv.clientHeight;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){
+    cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+  }
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return[ctx,w,h];
+}
+class Anim{
+  constructor(id,drawFn){
+    this.cv=document.getElementById(id);
+    this.drawFn=drawFn;
+    this.running=true;
+    this.pauseT=0;
+    this.t0=performance.now();
+    this.loop();
+  }
+  loop(){
+    if(!this.running)return;
+    const[ctx,w,h]=setupCanvas(this.cv);
+    const t=(performance.now()-this.t0)/1000;
+    ctx.clearRect(0,0,w,h);
+    this.drawFn(ctx,t,w,h);
+    requestAnimationFrame(()=>this.loop());
+  }
+  toggle(){
+    if(this.running){this.running=false;this.pauseT=performance.now()-this.t0;}
+    else{this.running=true;this.t0=performance.now()-this.pauseT;this.loop();}
+  }
+  restart(){this.running=true;this.t0=performance.now();this.loop();}
+}
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+
+/* ============ 7 个动画绘制函数 ============ */
+function drawCpuGpu(ctx,t,w,h){
+  const cyc=Math.floor(t*1.2)%4, frac=(t*1.2)%1;
+  ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+  ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+  ctx.fillStyle='#a3e635';ctx.fillText('CPU（4 核 · 串行）',w*0.25,26);
+  ctx.fillStyle='#79c0ff';ctx.fillText('GPU（16 核 · 并行）',w*0.75,26);
+  for(let i=0;i<4;i++){
+    const cx=w*0.25-90+i*60, cy=80;
+    ctx.fillStyle=i<=cyc?'#e3b341':'#3a4a5c';
+    ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#0d1520';ctx.font='bold 12px sans-serif';ctx.fillText(String(i),cx,cy+4);
+    for(let j=0;j<4;j++){
+      const tx=cx-30+j*20, ty=120; let state='done';
+      if(i>cyc)state='wait'; else if(i===cyc)state=j<frac*4?'run':'wait';
+      ctx.fillStyle=state==='run'?'#e3b341':(state==='done'?'#8b6508':'#2a3644');
+      ctx.fillRect(tx,ty,14,14);
+    }
+  }
+  const gstart=w*0.75-105;
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+    const x=gstart+c*30,y=55+r*26;
+    ctx.fillStyle=cyc>=0?'#76b900':'#2a3644';
+    roundRect(ctx,x,y,22,18,4);ctx.fill();
+  }
+  ctx.font='bold 20px monospace';ctx.textAlign='center';
+  ctx.fillStyle='#e6edf3';ctx.fillText('周期 '+cyc+' / 3',w/2,h-36);
+  ctx.font='12px sans-serif';ctx.fillStyle='#8fa3b8';
+  ctx.fillText('CPU 需 4 周期 · GPU 仅 1 周期',w/2,h-14);
+}
+function drawHier(ctx,t,w,h){
+  const phase=Math.floor(t/2.5)%3, p=(t%2.5)/2.5;
+  ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+  const cx=w/2,cy=h/2;
+  const labels=['网格 Grid：全部线程块','线程块 Block：256 线程','线程束 Warp：32 线程'];
+  const sub=['每个方格 = 1 个 Block','每个方格 = 1 个 Thread','每个方格 = 1 个 Thread'];
+  const sizes=[140,110,90];
+  const gs=sizes[phase]+(phase<2?sizes[phase+1]*p:0);
+  ctx.save();ctx.translate(cx,cy);ctx.scale(gs/sizes[phase],gs/sizes[phase]);
+  const n=phase===0?4:(phase===1?16:32), cell=44;
+  const rows=phase===2?2:(phase===1?16:4), cols=phase===2?16:(phase===1?16:4);
+  const total=rows*cols, ox=-(cols*cell)/2, oy=-(rows*cell)/2;
+  for(let i=0;i<total;i++){
+    const r=Math.floor(i/cols),c=i%cols;
+    ctx.fillStyle=phase===0?'#33485f':(phase===1?'#1c4e24':'#76b900');
+    ctx.fillRect(ox+c*cell+1,oy+r*cell+1,cell-2,cell-2);
+  }
+  ctx.restore();
+  ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  ctx.fillStyle='#a3e635';ctx.fillText(labels[phase],cx,h-52);
+  ctx.font='12px sans-serif';ctx.fillStyle='#8fa3b8';
+  ctx.fillText(sub[phase]+' · '+total+' 个单元',cx,h-30);
+}
+function drawSimt(ctx,t,w,h){
+  ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+  const instrs=['LDG.E R4, [R2]','FADD R6, R4, R5','STG.E [R8], R6'];
+  const idx=Math.floor(t/1.5)%3, prog=(t%1.5)/1.5;
+  instrs.forEach((s,i)=>{
+    ctx.font='12px monospace';ctx.textAlign='left';
+    ctx.fillStyle=i===idx?'#a3e635':'#3a4a5c';ctx.fillText(s,14,50+i*26);
+  });
+  const start=Math.max(w*0.3,170), cw=(w-start-20)/32, y0=60;
+  const active=idx===0?prog>0.15:true;
+  for(let i=0;i<32;i++){
+    const x=start+i*cw, lit=active&&(prog>0.15);
+    ctx.fillStyle=lit?'#76b900':'#2a3644';ctx.fillRect(x+1,y0,cw-2,30);
+  }
+  if(prog<0.15&&idx>=0){
+    const x=14+(w-start)*prog/0.15;
+    ctx.fillStyle='#a3e635';ctx.font='12px monospace';ctx.textAlign='left';
+    ctx.fillText(instrs[idx],x,40);
+  }
+  ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillStyle='#8fa3b8';
+  ctx.fillText('线程束内 32 个通道同时执行同一条指令（SIMT）',w/2,h-16);
+  ctx.fillText('活跃通道：'+(prog>0.15?'32 / 32':'0 / 32'),w/2,h-38);
+}
+function drawLatency(ctx,t,w,h){
+  ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+  const warps=[0,1,2,3], y0=40, rowH=38, speed=60;
+  const off=(t*speed)%(w*1.2);
+  warps.forEach(wp=>{
+    const y=y0+wp*rowH;
+    ctx.fillStyle='#3a4a5c';ctx.font='11px monospace';ctx.textAlign='left';
+    ctx.fillText('Warp '+wp,10,y+14);
+    const base=70;
+    const pattern=[{c:'#76b900',d:2},{c:'#e5534b',d:6},{c:'#76b900',d:2},{c:'#e5534b',d:6}];
+    let x=base-off-(wp%2)*40, k=0;
+    while(x<w){
+      const seg=pattern[k%pattern.length], segw=seg.d*speed/6;
+      ctx.fillStyle=seg.c;roundRect(ctx,x+1,y+2,segw-2,rowH-8,4);ctx.fill();
+      x+=segw;k++;
+    }
+  });
+  ctx.fillStyle='#33485f';ctx.fillRect(70,h-42,w-90,28);
+  ctx.font='11px monospace';ctx.textAlign='left';ctx.fillStyle='#a3e635';
+  ctx.fillText('SM 当前执行：Warp '+Math.floor((t*0.7)%4),84,h-24);
+  ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillStyle='#8fa3b8';
+  ctx.fillText('红色 = 等待内存（数百周期）· SM 切换到其他 Warp 填满空隙',w/2,h-56);
+}
+function drawDiv(ctx,t,w,h){
+  const cyc=Math.floor(t/2.2)%4, frac=(t%2.2)/2.2;
+  ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+  ctx.font='bold 13px sans-serif';ctx.textAlign='left';ctx.fillStyle='#e6edf3';
+  ctx.fillText('if (threadIdx.x < 16) { A } else { B }',14,26);
+  const rows=[[0,16],[16,32]];
+  rows.forEach((rng,ri)=>{
+    const y0=44+ri*54;
+    for(let i=rng[0];i<rng[1];i++){
+      const x=14+(i%16)*((w-34)/16);
+      let col='#2a3644',op=0.45;
+      if(cyc===0){col=i<16?'#8a9a3a':'#a05a2c';op=0.5+0.4*Math.sin(t*6+i);}
+      if(cyc===1){col=i<16?'#76b900':'#2a3644';op=i<16?1:0.3;}
+      if(cyc===2){col=i>=16?'#e08c2a':'#2a3644';op=i>=16?1:0.3;}
+      if(cyc===3){col='#76b900';op=1;}
+      ctx.globalAlpha=op;ctx.fillStyle=col;
+      roundRect(ctx,x,y0,((w-34)/16)-3,38,5);ctx.fill();ctx.globalAlpha=1;
+    }
+  });
+  const states=['条件测试：绿色走 if，橙色走 else','if 分支执行：else 线程被屏蔽（灰色）',
+    'else 分支执行：if 线程被屏蔽（灰色）','汇合：所有线程继续同步执行'];
+  ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillStyle='#8fa3b8';
+  ctx.fillText(states[cyc],w/2,h-16);
+}
+function drawReduce(ctx,t,w,h){
+  ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+  const n=16,levels=Math.log2(n);
+  const level=Math.floor(t/1.2)%(levels+1), prog=(t%1.2)/1.2;
+  const x0=40,x1=w-40, yLeaf=h-40;
+  const ys=[];for(let l=0;l<=levels;l++)ys.push(yLeaf-l*((h-80)/levels));
+  const nodes=[];
+  for(let l=0;l<=levels;l++){
+    const cnt=n>>l;
+    for(let i=0;i<cnt;i++){
+      const x=x0+(x1-x0)*(i+0.5)/cnt;
+      nodes.push({l,i,x,y:ys[l],v:(l===0?i+1:null)});
+    }
+  }
+  nodes.forEach(nd=>{
+    if(nd.l>=levels)return;
+    const children=nodes.filter(c=>c.l===nd.l+1&&(c.i===nd.i*2||c.i===nd.i*2+1));
+    children.forEach(c=>{
+      const active=nd.l===level&&prog>0.5;
+      ctx.strokeStyle=active?'#a3e635':'#3a4a5c';
+      ctx.lineWidth=active?2:1;
+      ctx.beginPath();ctx.moveTo(nd.x,nd.y);ctx.lineTo(c.x,c.y);ctx.stroke();
+    });
+  });
+  nodes.forEach(nd=>{
+    const active=nd.l===level&&prog>0.5, done=nd.l>level;
+    ctx.fillStyle=active?'#76b900':(done?'#3a5f14':'#2a3644');
+    ctx.beginPath();ctx.arc(nd.x,nd.y,active?15:12,0,Math.PI*2);ctx.fill();
+    if(nd.l===0||done||active){
+      ctx.fillStyle='#e6edf3';ctx.font='11px monospace';ctx.textAlign='center';
+      ctx.fillText(nd.l===0?String(nd.v):'Σ',nd.x,nd.y+4);
+    }
+  });
+  ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillStyle='#8fa3b8';
+  ctx.fillText('第 '+(level+1)+' 轮：活跃线程 '+(n>>level)+' → '+Math.max(1,n>>(level+1))+'（每轮减半）',w/2,18);
+}
+function drawTiling(ctx,t,w,h){
+  ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
+  const T=4,GS=3, tile=Math.min((w-80)/GS,52);
+  const ax=20,ay=36, bx=ax+GS*tile+40, cx=bx+GS*tile+40;
+  const k=Math.floor(t/0.5)%T, ti=Math.floor(t/2)%(GS*GS);
+  const tr=Math.floor(ti/GS),tc=ti%GS;
+  function drawMat(x,y,hi,color){
+    ctx.strokeStyle='#33485f';ctx.lineWidth=1;
+    for(let r=0;r<GS;r++)for(let c=0;c<GS;c++){
+      const hx=x+c*tile,hy=y+r*tile; let fill=color;
+      if(hi.r===r&&hi.c===c)fill='#a3e635';
+      ctx.fillStyle=fill==='row'?(hi.r===r?'#76b900':'#243043'):
+        (fill==='col'?(hi.c===c?'#e08c2a':'#243043'):
+        (fill==='both'?(hi.r===r||hi.c===c?'#76b900':'#243043'):fill));
+      roundRect(ctx,hx+2,hy+2,tile-4,tile-4,4);ctx.fill();
+      ctx.strokeRect(hx,hy,tile,tile);
+    }
+  }
+  drawMat(ax,ay,{r:tr,c:-1},'row');
+  drawMat(bx,ay,{r:-1,c:tc},'col');
+  drawMat(cx,ay,{r:tr,c:tc},'both');
+  ctx.font='11px monospace';ctx.textAlign='center';ctx.fillStyle='#8fa3b8';
+  ctx.fillText('A 行带',ax+GS*tile/2,ay-10);
+  ctx.fillText('B 列带',bx+GS*tile/2,ay-10);
+  ctx.fillText('C tile',cx+GS*tile/2,ay-10);
+  ctx.fillText('K 维 tile '+k+' / 3 · C[tile] = Σ A[tile行] × B[tile列]',w/2,h-14);
+}
+
+/* ============ 动画注册表（章节 → 动画） ============ */
+const ANIMS=[
+  {ch:'ch1',  cv:'cv-cpu-gpu', var:'animCpuGpu', title:'CPU vs GPU 并行执行', desc:'4 核 CPU 串行 4 周期 vs 16 核 GPU 单周期', draw:drawCpuGpu},
+  {ch:'ch15', cv:'cv-hier',    var:'animHier',    title:'网格-块-线程层次', desc:'Grid → Block → Warp 逐级放大', draw:drawHier},
+  {ch:'ch19', cv:'cv-simt',    var:'animSimt',    title:'SIMT 线程束发射', desc:'32 通道同时执行同一指令', draw:drawSimt},
+  {ch:'ch24', cv:'cv-latency', var:'animLatency', title:'延迟隐藏（Warp 调度）', desc:'SM 切换 Warp 填满内存等待', draw:drawLatency},
+  {ch:'ch36x', cv:'cv-div',    var:'animDiv',     title:'线程束分化', desc:'if/else 分支屏蔽与汇合', draw:drawDiv},
+  {ch:'ch37', cv:'cv-reduce',  var:'animReduce',  title:'向量归约树', desc:'每轮活跃线程减半', draw:drawReduce},
+  {ch:'ch46', cv:'cv-tiling',  var:'animTiling',  title:'共享内存分块矩阵乘法', desc:'A 行带 × B 列带 → C tile', draw:drawTiling},
+];
+function animBoxHtml(a){
+  return '<div class="anim-box"><div class="anim-head">'
+    +'<span class="anim-title">▶ 动画：'+a.title+'</span>'
+    +'<span class="anim-desc">'+a.desc+'</span>'
+    +'<button onclick="'+a.var+'.toggle()">暂停/继续</button>'
+    +'<button onclick="'+a.var+'.restart()">重新播放</button>'
+    +'</div><canvas id="'+a.cv+'"></canvas></div>';
+}
+
+/* ============ 构建章节 DOM ============ */
+const main=document.querySelector('main');
+const animByCh={}; ANIMS.forEach(a=>animByCh[a.ch]=a);
+ORDER.forEach(id=>{
+  const d=window.CUDA_CHAPTERS[id]; if(!d) return;
+  const sec=document.createElement('section');
+  sec.className='chapter'; sec.id=id;
+  let html='<h2><span class="chno">'+d.no+'</span>'+d.title+'</h2>';
+  if(animByCh[id]) html+=animBoxHtml(animByCh[id]);
+  html+=d.html;
+  sec.innerHTML=html;
+  main.appendChild(sec);
+});
+/* 动画实例化（DOM 构建后） */
+ANIMS.forEach(a=>{ window[a.var]=new Anim(a.cv,a.draw); });
+
+/* ============ 目录高亮 ============ */
+const tocItems=[...document.querySelectorAll('.toc-item')];
+const chapters=[...document.querySelectorAll('section.chapter')];
+const spy=new IntersectionObserver(es=>{
+  let best=null,bestTop=Infinity;
+  es.forEach(e=>{
+    if(e.isIntersecting&&e.boundingClientRect.top<bestTop){
+      bestTop=e.boundingClientRect.top;best=e.target.id;
+    }
+  });
+  if(best){
+    tocItems.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+best));
+  }
+},{rootMargin:'-70px 0px -55% 0px'});
+chapters.forEach(c=>spy.observe(c));
+</script>
+</body>
+</html>
