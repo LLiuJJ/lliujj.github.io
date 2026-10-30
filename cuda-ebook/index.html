@@ -4,24 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CUDA 并行编程完全指南 — 交互式电子书</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#f6f7f9; --card:#ffffff; --text:#24292f; --muted:#57606a;
   --accent:#76b900; --accent-dark:#5a8f00; --border:#d8dee4;
   --code-bg:#1e2530; --code-text:#e6edf3; --sidebar-w:290px;
   --gold:#b08800; --blue:#0969da; --purple:#8250df;
+  --font-serif:"Songti SC","Source Han Serif SC","Noto Serif SC",Georgia,"Times New Roman",serif;
+  --font-sans:"PingFang SC",-apple-system,BlinkMacSystemFont,"Source Han Sans SC","Noto Sans SC","Helvetica Neue",sans-serif;
+  --font-mono:"SF Mono","JetBrains Mono","Fira Code",Menlo,Consolas,monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-  background:var(--bg);color:var(--text);line-height:1.8;font-size:15.5px}
+body{font-family:var(--font-serif);
+  background:var(--bg);color:var(--text);line-height:1.9;font-size:16px;
+  letter-spacing:.015em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* ===== 顶栏 ===== */
 header{position:fixed;top:0;left:0;right:0;height:58px;background:rgba(255,255,255,.92);
   backdrop-filter:blur(8px);border-bottom:1px solid var(--border);z-index:100;
-  display:flex;align-items:center;padding:0 22px;gap:14px}
+  display:flex;align-items:center;padding:0 22px;gap:14px;font-family:var(--font-sans)}
 header .logo{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#76b900,#3d6400);
-  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex:none}
-header h1{font-size:17px;font-weight:700;white-space:nowrap}
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex:none;
+  letter-spacing:0}
+header h1{font-size:17px;font-weight:600;white-space:nowrap;letter-spacing:.01em}
 header h1 .sub{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
 header .spacer{flex:1}
 header .hint{font-size:12.5px;color:var(--muted);white-space:nowrap}
@@ -30,58 +38,67 @@ header .hint{font-size:12.5px;color:var(--muted);white-space:nowrap}
 aside{position:fixed;top:58px;left:0;bottom:0;width:var(--sidebar-w);overflow-y:auto;
   background:var(--card);border-right:1px solid var(--border);padding:18px 12px 40px;z-index:90}
 aside::-webkit-scrollbar{width:5px} aside::-webkit-scrollbar-thumb{background:#c8cdd4;border-radius:3px}
-.toc-group{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:16px 8px 6px;text-transform:uppercase}
+.toc-group{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:16px 8px 6px;text-transform:uppercase;
+  font-family:var(--font-sans)}
 .toc-item{display:flex;align-items:baseline;gap:7px;padding:5px 10px;border-radius:6px;cursor:pointer;
-  color:var(--text);text-decoration:none;font-size:13.5px;line-height:1.45;transition:background .15s}
+  color:var(--text);text-decoration:none;font-size:13.5px;line-height:1.45;transition:background .15s;
+  font-family:var(--font-sans)}
 .toc-item:hover{background:#f0f3f5}
 .toc-item.active{background:#eef7dd;color:var(--accent-dark);font-weight:600}
 .toc-item .no{color:#9aa4ae;font-size:11.5px;flex:none;min-width:26px;text-align:right}
 /* ===== 内容区 ===== */
 main{margin-left:var(--sidebar-w);padding:84px 28px 60px;max-width:1080px}
 .hero{padding:26px 30px;background:linear-gradient(120deg,#16210c 0%,#24380f 55%,#324d12 100%);
-  color:#fff;border-radius:14px;margin-bottom:30px;position:relative;overflow:hidden}
+  color:#fff;border-radius:14px;margin-bottom:30px;position:relative;overflow:hidden;font-family:var(--font-sans)}
 .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;
   background:radial-gradient(circle,rgba(118,185,0,.35),transparent 70%)}
-.hero h2{font-size:26px;margin-bottom:10px}
-.hero p{font-size:14.5px;opacity:.92;max-width:640px}
+.hero h2{font-size:26px;margin-bottom:10px;font-weight:600;letter-spacing:.02em}
+.hero p{font-size:14.5px;opacity:.92;max-width:640px;line-height:1.8}
 .hero .stats{display:flex;gap:26px;margin-top:16px;flex-wrap:wrap}
 .hero .stats div{font-size:13px;opacity:.85}
 .hero .stats b{display:block;font-size:21px;color:#a3e635;opacity:1}
 section.chapter{background:var(--card);border:1px solid var(--border);border-radius:12px;
-  padding:26px 30px;margin-bottom:22px;scroll-margin-top:74px}
-section.chapter h2{font-size:19.5px;margin-bottom:4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  padding:28px 32px;margin-bottom:22px;scroll-margin-top:74px}
+section.chapter h2{font-size:20px;margin-bottom:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  font-family:var(--font-sans);font-weight:600;letter-spacing:.01em}
 section.chapter h2 .chno{font-size:12.5px;font-weight:700;color:#fff;background:var(--accent);
-  border-radius:6px;padding:2px 9px;flex:none}
-section.chapter h3{font-size:16px;margin:18px 0 8px;padding-left:10px;border-left:3px solid var(--accent)}
-section.chapter h4{font-size:14.5px;margin:14px 0 6px;color:var(--accent-dark)}
-section.chapter h5{font-size:14px;margin:12px 0 5px;color:var(--muted)}
-section.chapter p{margin:8px 0;font-size:14.5px}
-section.chapter ul,section.chapter ol{padding-left:22px;margin:8px 0}
-section.chapter li{margin:4px 0;font-size:14.5px}
+  border-radius:6px;padding:2px 9px;flex:none;font-family:var(--font-sans);letter-spacing:0}
+section.chapter h3{font-size:16.5px;margin:20px 0 8px;padding-left:10px;border-left:3px solid var(--accent);
+  font-family:var(--font-sans);font-weight:600}
+section.chapter h4{font-size:15px;margin:16px 0 6px;color:var(--accent-dark);
+  font-family:var(--font-sans);font-weight:600}
+section.chapter h5{font-size:14.5px;margin:14px 0 5px;color:var(--muted);
+  font-family:var(--font-sans);font-weight:600}
+section.chapter p{margin:10px 0;font-size:15px;line-height:1.9}
+section.chapter ul,section.chapter ol{padding-left:22px;margin:10px 0}
+section.chapter li{margin:5px 0;font-size:15px;line-height:1.85}
 section.chapter li b{color:var(--accent-dark)}
 section.chapter a{color:var(--blue);text-decoration:none}
 section.chapter a:hover{text-decoration:underline}
 /* 表格 */
-table{border-collapse:collapse;margin:12px 0;font-size:13.5px;width:100%;display:block;overflow-x:auto}
-th{background:#f0f5e4;color:#3d4a20;font-weight:600;text-align:left;padding:7px 12px;
+table{border-collapse:collapse;margin:12px 0;font-size:13.5px;width:100%;display:block;overflow-x:auto;
+  font-family:var(--font-sans)}
+th{background:#f0f5e4;color:#3d4a20;font-weight:600;text-align:left;padding:8px 12px;
   border:1px solid var(--border);white-space:nowrap}
-td{padding:7px 12px;border:1px solid var(--border);vertical-align:top}
+td{padding:8px 12px;border:1px solid var(--border);vertical-align:top;line-height:1.7}
 tr:nth-child(even) td{background:#fafbfc}
 /* 图片与图注 */
 figure{margin:18px 0;text-align:center}
 figure img{max-width:100%;border-radius:8px;border:1px solid var(--border)}
-figcaption{font-size:13px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.6}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px;text-align:center;line-height:1.7;
+  font-family:var(--font-sans)}
 .capno{font-weight:700;color:var(--accent-dark)}
 .table-fig{margin:18px 0}
 .table-fig table{margin:0}
 /* 代码块 */
 pre{background:var(--code-bg);color:var(--code-text);border-radius:10px;padding:16px 18px;
-  overflow-x:auto;font-size:13px;line-height:1.6;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace}
+  overflow-x:auto;font-size:13px;line-height:1.65;margin:12px 0;font-family:var(--font-mono);letter-spacing:0}
 pre code{background:none;padding:0;color:inherit}
 .code-caption{font-size:12.5px;color:#8b949e;margin-bottom:6px;padding:0 18px;padding-bottom:4px;
-  border-bottom:1px solid #33485f;background:var(--code-bg);border-radius:10px 10px 0 0}
+  border-bottom:1px solid #33485f;background:var(--code-bg);border-radius:10px 10px 0 0;
+  font-family:var(--font-mono);letter-spacing:0}
 code.inline{background:#eef1f4;border-radius:4px;padding:1.5px 6px;font-size:13px;
-  font-family:"SF Mono",Menlo,Consolas,monospace;color:#1f2328}
+  font-family:var(--font-mono);color:#1f2328;letter-spacing:0}
 /* 数学 */
 .math{font-family:Georgia,"Times New Roman",serif;font-style:italic}
 .math-block{display:block;text-align:center;margin:14px auto;padding:10px 16px;
@@ -94,28 +111,30 @@ blockquote{border-left:3px solid var(--accent);margin:12px 0;padding:8px 16px;
   background:#f6f8fa;border-radius:0 6px 6px 0}
 blockquote p{margin:4px 0}
 dl{margin:10px 0}
-dt{font-weight:700;color:var(--accent-dark);margin-top:8px}
+dt{font-weight:700;color:var(--accent-dark);margin-top:8px;font-family:var(--font-sans)}
 dd{margin:2px 0 8px 18px}
 .center{text-align:center;margin:12px 0}
 /* 动画卡片 */
 .anim-box{background:#0d1520;border-radius:12px;padding:14px;margin:18px 0;color:#dbe4ee}
 .anim-box .anim-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
-.anim-box .anim-title{font-size:13px;font-weight:700;color:#a3e635;letter-spacing:.3px}
-.anim-box .anim-desc{font-size:12px;color:#8fa3b8}
+.anim-box .anim-title{font-size:13px;font-weight:700;color:#a3e635;letter-spacing:.3px;
+  font-family:var(--font-sans)}
+.anim-box .anim-desc{font-size:12px;color:#8fa3b8;font-family:var(--font-sans)}
 .anim-box button{background:#1c2b3f;border:1px solid #33485f;color:#cfe3f5;font-size:12px;
-  padding:4px 14px;border-radius:6px;cursor:pointer;transition:all .15s}
+  padding:4px 14px;border-radius:6px;cursor:pointer;transition:all .15s;font-family:var(--font-sans)}
 .anim-box button:hover{background:#2a3f59;border-color:#76b900;color:#fff}
 .anim-box canvas{width:100%;height:230px;display:block;border-radius:8px;background:#0a1119}
 /* 提示框 */
 .note{background:#fff8e6;border-left:4px solid #e3b341;border-radius:6px;padding:10px 14px;
-  font-size:13.5px;margin:10px 0}
+  font-size:13.5px;margin:10px 0;font-family:var(--font-sans)}
 .tip{background:#eef7dd;border-left:4px solid #76b900;border-radius:6px;padding:10px 14px;
-  font-size:13.5px;margin:10px 0}
+  font-size:13.5px;margin:10px 0;font-family:var(--font-sans)}
 /* 回到顶部 */
 #toTop{position:fixed;right:22px;bottom:22px;width:40px;height:40px;border-radius:50%;
   background:var(--accent);color:#fff;border:none;font-size:18px;cursor:pointer;display:none;
   box-shadow:0 3px 12px rgba(118,185,0,.4);z-index:99}
-footer{text-align:center;color:var(--muted);font-size:12.5px;padding:26px 0 40px;margin-left:var(--sidebar-w)}
+footer{text-align:center;color:var(--muted);font-size:12.5px;padding:26px 0 40px;margin-left:var(--sidebar-w);
+  font-family:var(--font-sans)}
 /* 响应式 */
 @media(max-width:960px){
   aside{display:none}
@@ -336,33 +355,94 @@ function roundRect(ctx,x,y,w,h,r){
 
 /* ============ 7 个动画绘制函数 ============ */
 function drawCpuGpu(ctx,t,w,h){
-  const cyc=Math.floor(t*1.2)%4, frac=(t*1.2)%1;
+  const T=1.5;
+  const cyc=Math.floor(t/T)%4, frac=(t%T)/T;
   ctx.fillStyle='#0d1520';ctx.fillRect(0,0,w,h);
-  ctx.font='bold 13px sans-serif';ctx.textAlign='center';
-  ctx.fillStyle='#a3e635';ctx.fillText('CPU（4 核 · 串行）',w*0.25,26);
-  ctx.fillStyle='#79c0ff';ctx.fillText('GPU（16 核 · 并行）',w*0.75,26);
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  // 分界线
+  ctx.strokeStyle='#1c2b3f';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(w/2,38);ctx.lineTo(w/2,h-46);ctx.stroke();
+  // 标题
+  ctx.font='bold 13px sans-serif';
+  ctx.fillStyle='#a3e635';ctx.fillText('CPU（4 核 · 串行）',w*0.25,24);
+  ctx.fillStyle='#79c0ff';ctx.fillText('GPU（16 核 · 并行）',w*0.75,24);
+  /* ---- CPU 侧：4 核竖排，每核 4 任务，逐核串行 ---- */
+  const cpuX=w*0.25;
+  const coreR=Math.min(15,w*0.042);
+  const rowH=Math.min(40,(h-110)/4);
+  const cpuY0=48;
+  const tSize=Math.min(13,w*0.036), tGap=4;
+  const taskX0=cpuX+coreR+14;
   for(let i=0;i<4;i++){
-    const cx=w*0.25-90+i*60, cy=80;
-    ctx.fillStyle=i<=cyc?'#e3b341':'#3a4a5c';
-    ctx.beginPath();ctx.arc(cx,cy,20,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#0d1520';ctx.font='bold 12px sans-serif';ctx.fillText(String(i),cx,cy+4);
+    const cy=cpuY0+i*rowH+coreR;
+    const isActive=i===cyc, isDone=i<cyc;
+    // 核心圆
+    ctx.fillStyle=isActive?'#e3b341':(isDone?'#4a6b16':'#2a3644');
+    ctx.beginPath();ctx.arc(cpuX,cy,coreR,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=isActive?'#0d1520':'#5a6a7a';
+    ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(String(i),cpuX,cy);
+    ctx.textBaseline='alphabetic';
+    // 任务方块
     for(let j=0;j<4;j++){
-      const tx=cx-30+j*20, ty=120; let state='done';
-      if(i>cyc)state='wait'; else if(i===cyc)state=j<frac*4?'run':'wait';
-      ctx.fillStyle=state==='run'?'#e3b341':(state==='done'?'#8b6508':'#2a3644');
-      ctx.fillRect(tx,ty,14,14);
+      const tx=taskX0+j*(tSize+tGap), ty=cy-tSize/2;
+      let col='#2a3644';
+      if(isDone)col='#4a6b16';
+      else if(isActive){
+        const tp=frac*4;
+        if(j<Math.floor(tp))col='#4a6b16';
+        else if(j===Math.floor(tp))col='#e3b341';
+      }
+      ctx.fillStyle=col;ctx.fillRect(tx,ty,tSize,tSize);
     }
   }
-  const gstart=w*0.75-105;
+  // CPU 进度
+  const cpuDone=cyc*4+Math.floor(frac*4);
+  ctx.font='11px sans-serif';ctx.textAlign='center';
+  ctx.fillStyle='#8fa3b8';ctx.fillText('进度 '+cpuDone+'/16',cpuX,h-48);
+  /* ---- GPU 侧：4×4 网格，周期 0 同时执行，之后已完成 ---- */
+  const gpuX=w*0.75;
+  const gCell=Math.min(22,w*0.058), gGap=5;
+  const gW=gCell*4+gGap*3;
+  const gStartX=gpuX-gW/2;
+  const gStartY=48+((h-110)-(gCell*4+gGap*3))/2;
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){
-    const x=gstart+c*30,y=55+r*26;
-    ctx.fillStyle=cyc>=0?'#76b900':'#2a3644';
-    roundRect(ctx,x,y,22,18,4);ctx.fill();
+    const x=gStartX+c*(gCell+gGap), y=gStartY+r*(gCell+gGap);
+    let col,alpha=1,mark=false;
+    if(cyc===0){
+      // 周期 0：16 核同时执行（从下到上逐排亮起的脉冲效果）
+      const totalCells=16;
+      const idx=r*4+c;
+      const lightUp=Math.floor(frac*totalCells); // 依次点亮的数量
+      if(idx<lightUp){col='#4a6b16';alpha=0.9;mark=true;}
+      else if(idx===lightUp){col='#76b900';alpha=0.4+0.6*Math.sin(frac*Math.PI*8);}
+      else {col='#2a3644';alpha=0.5;}
+    }else{
+      // 周期 1-3：已完成
+      col='#4a6b16';alpha=0.85;mark=true;
+    }
+    ctx.globalAlpha=alpha;ctx.fillStyle=col;
+    roundRect(ctx,x,y,gCell,gCell,4);ctx.fill();
+    ctx.globalAlpha=1;
+    if(mark){
+      ctx.fillStyle='#a3e635';ctx.font='bold '+Math.round(gCell*0.65)+'px sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('✓',x+gCell/2,y+gCell/2);
+      ctx.textBaseline='alphabetic';
+    }
   }
-  ctx.font='bold 20px monospace';ctx.textAlign='center';
-  ctx.fillStyle='#e6edf3';ctx.fillText('周期 '+cyc+' / 3',w/2,h-36);
-  ctx.font='12px sans-serif';ctx.fillStyle='#8fa3b8';
-  ctx.fillText('CPU 需 4 周期 · GPU 仅 1 周期',w/2,h-14);
+  // GPU 进度
+  const gpuDone=cyc>=1?16:Math.min(16,Math.floor(frac*16));
+  ctx.font='11px sans-serif';ctx.textAlign='center';
+  ctx.fillStyle=cyc>=1?'#76b900':'#a3e635';
+  ctx.fillText('进度 '+gpuDone+'/16'+(cyc>=1?' ✓':''),gpuX,h-48);
+  // 底部状态
+  ctx.font='bold 16px monospace';ctx.textAlign='center';
+  ctx.fillStyle='#e6edf3';ctx.fillText('周期 '+cyc+' / 3',w/2,h-28);
+  ctx.font='11px sans-serif';ctx.fillStyle='#8fa3b8';
+  const label=cyc===0?'GPU 16 核同时执行 → 1 周期完成 · CPU 仅 1 核工作'
+    :'GPU 已完成 ✓ · CPU 仍在逐核串行 ('+cpuDone+'/16)';
+  ctx.fillText(label,w/2,h-12);
 }
 function drawHier(ctx,t,w,h){
   const phase=Math.floor(t/2.5)%3, p=(t%2.5)/2.5;
