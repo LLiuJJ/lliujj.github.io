@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RL: An Introduction 双语笔记目录 | Bilingual Notes Index</title>
+<style>
+:root { --bg: #0f1923; --card-bg: #1a2634; --accent: #64b5f6; --accent2: #ef5350; --text: #e0e0e0; --text-dim: #90a4ae; --gold: #ffd54f; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.hero {
+  background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 40%, #2a1a3a 100%);
+  padding: 70px 20px 50px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 50%, rgba(100,181,246,0.08) 0%, transparent 50%),
+              radial-gradient(circle at 70% 50%, rgba(239,83,80,0.06) 0%, transparent 50%);
+  animation: pulse 8s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+.hero h1 { font-size: 2.6em; color: white; position: relative; letter-spacing: 1px; }
+.hero h1 span { color: var(--accent); }
+.hero h2 { font-size: 1.4em; color: var(--text-dim); font-weight: 300; margin-top: 8px; position: relative; }
+.hero .subtitle { margin-top: 20px; font-size: 0.95em; color: var(--text-dim); position: relative; }
+.hero .subtitle a { color: var(--gold); text-decoration: none; }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 30px 20px 60px; }
+
+.part-label {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin: 45px 0 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(100,181,246,0.3);
+}
+.part-label .badge {
+  background: linear-gradient(135deg, var(--accent), #1e88e5);
+  color: white;
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+.part-label .badge.red { background: linear-gradient(135deg, var(--accent2), #c62828); }
+.part-label .badge.gold { background: linear-gradient(135deg, #f9a825, #ff8f00); }
+.part-label h3 { font-size: 1.25em; color: white; }
+.part-label .en { color: var(--text-dim); font-size: 0.85em; font-weight: 300; }
+
+.chapters { display: grid; grid-template-columns: 1fr; gap: 12px; }
+
+.chapter-card {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 18px 22px;
+  text-decoration: none;
+  color: var(--text);
+  transition: all 0.25s ease;
+  border: 1px solid rgba(255,255,255,0.06);
+  position: relative;
+  overflow: hidden;
+}
+.chapter-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--bar-color, var(--accent));
+  border-radius: 4px 0 0 4px;
+}
+.chapter-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+  border-color: rgba(255,255,255,0.12);
+  background: #1f2f40;
+}
+.chapter-card:hover .ch-num { color: var(--bar-color, var(--accent)); }
+
+.ch-num {
+  font-size: 1.8em;
+  font-weight: 800;
+  color: rgba(255,255,255,0.15);
+  text-align: center;
+  transition: color 0.25s;
+}
+.ch-info { padding: 0 15px; }
+.ch-title { font-size: 1.05em; font-weight: 600; color: white; margin-bottom: 3px; }
+.ch-subtitle { font-size: 0.85em; color: var(--text-dim); }
+.ch-tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.ch-tags span {
+  font-size: 0.7em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(100,181,246,0.12);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.ch-arrow {
+  font-size: 1.3em;
+  color: rgba(255,255,255,0.15);
+  transition: all 0.25s;
+}
+.chapter-card:hover .ch-arrow { color: var(--bar-color, var(--accent)); transform: translateX(4px); }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin: 40px 0;
+}
+.stat-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 25px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.stat-card .num { font-size: 2.2em; font-weight: 800; color: var(--accent); }
+.stat-card .label { font-size: 0.85em; color: var(--text-dim); margin-top: 5px; }
+
+.footer {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-size: 0.85em;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.footer a { color: var(--gold); text-decoration: none; }
+
+@media (max-width: 768px) {
+  .hero h1 { font-size: 1.8em; }
+  .stats { grid-template-columns: 1fr; }
+  .chapter-card { grid-template-columns: 44px 1fr auto; padding: 14px 16px; }
+  .ch-num { font-size: 1.4em; }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Reinforcement Learning: <span>An Introduction</span></h1>
+  <h2>强化学习：导论 — 中英文双语精读笔记</h2>
+  <p class="subtitle">基于 <a href="RLbook2018.pdf">Sutton & Barto (2018)</a> 原著 · 共13章 · 中英对照 · 公式 + 伪代码 + 概念速查</p>
+</div>
+
+<div class="container">
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="num">13</div>
+    <div class="label">章节 / Chapters</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">548</div>
+    <div class="label">原著页数 / Pages</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">双语</div>
+    <div class="label">中英对照 / Bilingual</div>
+  </div>
+</div>
+
+<!-- Part I -->
+<div class="part-label">
+  <span class="badge">Part I</span>
+  <div>
+    <h3>基础篇</h3>
+    <span class="en">Foundations: Tabular Methods</span>
+  </div>
+</div>
+
+<div class="chapters">
+
+<a class="chapter-card" href="RL_Book_Chapter1_Bilingual.html" style="--bar-color: #7e57c2;">
+  <div class="ch-num">01</div>
+  <div class="ch-info">
+    <div class="ch-title">强化学习导论</div>
+    <div class="ch-subtitle">Introduction</div>
+    <div class="ch-tags"><span>RL定义</span><span>Agent-Environment</span><span>核心思想</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter2_Bilingual.html" style="--bar-color: #42a5f5;">
+  <div class="ch-num">02</div>
+  <div class="ch-info">
+    <div class="ch-title">多臂老虎机</div>
+    <div class="ch-subtitle">Multi-armed Bandits</div>
+    <div class="ch-tags"><span>探索-利用</span><span>ε-greedy</span><span>UCB</span><span>Gradient Bandit</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter3_Bilingual.html" style="--bar-color: #66bb6a;">
+  <div class="ch-num">03</div>
+  <div class="ch-info">
+    <div class="ch-title">有限马尔可夫决策过程</div>
+    <div class="ch-subtitle">Finite Markov Decision Processes</div>
+    <div class="ch-tags"><span>MDP</span><span>回报</span><span>策略</span><span>Bellman方程</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter4_Bilingual.html" style="--bar-color: #ffa726;">
+  <div class="ch-num">04</div>
+  <div class="ch-info">
+    <div class="ch-title">动态规划</div>
+    <div class="ch-subtitle">Dynamic Programming</div>
+    <div class="ch-tags"><span>策略评估</span><span>策略迭代</span><span>值迭代</span><span>GPI</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter5_Bilingual.html" style="--bar-color: #ef5350;">
+  <div class="ch-num">05</div>
+  <div class="ch-info">
+    <div class="ch-title">蒙特卡罗方法</div>
+    <div class="ch-subtitle">Monte Carlo Methods</div>
+    <div class="ch-tags"><span>MC预测</span><span>MC控制</span><span>重要性采样</span><span>ES</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter6_Bilingual.html" style="--bar-color: #26c6da;">
+  <div class="ch-num">06</div>
+  <div class="ch-info">
+    <div class="ch-title">时序差分学习</div>
+    <div class="ch-subtitle">Temporal-Difference Learning</div>
+    <div class="ch-tags"><span>TD(0)</span><span>Sarsa</span><span>Q-learning</span><span>Expected Sarsa</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter7_Bilingual.html" style="--bar-color: #ec407a;">
+  <div class="ch-num">07</div>
+  <div class="ch-info">
+    <div class="ch-title">n步自举</div>
+    <div class="ch-subtitle">n-step Bootstrapping</div>
+    <div class="ch-tags"><span>n-step TD</span><span>n-step Sarsa</span><span>Off-policy</span><span>Tree Backup</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter8_Bilingual.html" style="--bar-color: #ab47bc;">
+  <div class="ch-num">08</div>
+  <div class="ch-info">
+    <div class="ch-title">基于模型的规划与行动</div>
+    <div class="ch-subtitle">Planning and Acting with Models</div>
+    <div class="ch-tags"><span>Dyna-Q</span><span>模拟</span><span>优先级扫描</span><span>规划vs学习</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+</div>
+
+<!-- Part II -->
+<div class="part-label">
+  <span class="badge red">Part II</span>
+  <div>
+    <h3>近似篇</h3>
+    <span class="en">Approximate Methods: Function Approximation</span>
+  </div>
+</div>
+
+<div class="chapters">
+
+<a class="chapter-card" href="RL_Book_Chapter9_Bilingual.html" style="--bar-color: #283593;">
+  <div class="ch-num">09</div>
+  <div class="ch-info">
+    <div class="ch-title">On-policy预测与近似</div>
+    <div class="ch-subtitle">On-policy Prediction with Approximation</div>
+    <div class="ch-tags"><span>VE</span><span>半梯度TD</span><span>特征构造</span><span>ANN</span><span>瓦片编码</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter10_Bilingual.html" style="--bar-color: #006064;">
+  <div class="ch-num">10</div>
+  <div class="ch-info">
+    <div class="ch-title">On-policy控制与近似</div>
+    <div class="ch-subtitle">On-policy Control with Approximation</div>
+    <div class="ch-tags"><span>半梯度Sarsa</span><span>Mountain Car</span><span>平均奖励</span><span>差分Sarsa</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter11_Bilingual.html" style="--bar-color: #4a148c;">
+  <div class="ch-num">11</div>
+  <div class="ch-info">
+    <div class="ch-title">*Off-policy方法与近似</div>
+    <div class="ch-subtitle">*Off-policy Methods with Approximation</div>
+    <div class="ch-tags"><span>致命三要素</span><span>Baird反例</span><span>Gradient-TD</span><span>Emphatic-TD</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter12_Bilingual.html" style="--bar-color: #4e342e;">
+  <div class="ch-num">12</div>
+  <div class="ch-info">
+    <div class="ch-title">资格迹</div>
+    <div class="ch-subtitle">Eligibility Traces</div>
+    <div class="ch-tags"><span>λ-回报</span><span>TD(λ)</span><span>Sarsa(λ)</span><span>Dutch迹</span><span>前向/后向视图</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+<a class="chapter-card" href="RL_Book_Chapter13_Bilingual.html" style="--bar-color: #004d40;">
+  <div class="ch-num">13</div>
+  <div class="ch-info">
+    <div class="ch-title">策略梯度方法</div>
+    <div class="ch-subtitle">Policy Gradient Methods</div>
+    <div class="ch-tags"><span>策略梯度定理</span><span>REINFORCE</span><span>Actor-Critic</span><span>连续动作</span></div>
+  </div>
+  <div class="ch-arrow">→</div>
+</a>
+
+</div>
+
+</div>
+
+<div class="footer">
+  <p>基于 Sutton & Barto《<a href="RLbook2018.pdf">Reinforcement Learning: An Introduction</a>》(2nd Edition, 2018) 原著生成</p>
+  <p style="margin-top:6px;">每章包含中英双语对照 · 关键公式 · 算法伪代码 · 核心概念速查表</p>
+</div>
+
+</div>
+</body>
+</html>

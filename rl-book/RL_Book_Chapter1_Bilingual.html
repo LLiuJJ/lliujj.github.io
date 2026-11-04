@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>强化学习导论 | Introduction - RL Book Ch.1 Bilingual</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --en-color: #2c3e50;
+    --cn-color: #c0392b;
+    --accent: #3498db;
+    --border: #e0e0e0;
+    --highlight: #fef9e7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Noto Serif SC", "Georgia", "Times New Roman", serif;
+    background: var(--bg);
+    color: #333;
+    line-height: 1.8;
+    padding: 0;
+  }
+  .hero {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #fff;
+    text-align: center;
+    padding: 60px 20px 50px;
+  }
+  .hero h1 { font-size: 2.4em; margin-bottom: 8px; letter-spacing: 1px; }
+  .hero h2 { font-size: 1.3em; font-weight: 400; opacity: 0.85; }
+  .hero .meta { margin-top: 16px; font-size: 0.9em; opacity: 0.65; }
+  .container { max-width: 960px; margin: 0 auto; padding: 30px 20px 60px; }
+  .toc {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 30px;
+    margin-bottom: 36px;
+  }
+  .toc h3 { font-size: 1.15em; margin-bottom: 12px; color: var(--accent); }
+  .toc ol { padding-left: 22px; }
+  .toc li { margin: 6px 0; }
+  .toc a { text-decoration: none; color: var(--accent); }
+  .toc a:hover { text-decoration: underline; }
+
+  .section {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 30px 32px;
+    margin-bottom: 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .section h3 {
+    font-size: 1.45em;
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 8px;
+    margin-bottom: 22px;
+  }
+  .section h4 {
+    font-size: 1.1em;
+    color: #555;
+    margin: 18px 0 10px;
+  }
+
+  .bilingual {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 720px) {
+    .bilingual { grid-template-columns: 1fr; }
+  }
+  .en {
+    color: var(--en-color);
+    font-size: 0.95em;
+    padding: 14px 16px;
+    background: #f4f6f9;
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+  }
+  .cn {
+    color: var(--cn-color);
+    font-size: 0.97em;
+    padding: 14px 16px;
+    background: #fdf5f3;
+    border-left: 3px solid #e74c3c;
+    border-radius: 4px;
+  }
+  .en .label, .cn .label {
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: block;
+    margin-bottom: 6px;
+    opacity: 0.55;
+  }
+
+  .key-term {
+    background: var(--highlight);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+
+  .formula {
+    text-align: center;
+    padding: 16px;
+    margin: 14px 0;
+    background: #f0f4f8;
+    border-radius: 6px;
+    font-family: "Courier New", monospace;
+    font-size: 1.05em;
+  }
+
+  .example-list {
+    padding-left: 20px;
+    margin: 10px 0;
+  }
+  .example-list li {
+    margin-bottom: 10px;
+    list-style-type: disc;
+  }
+
+  .note {
+    background: #eaf4fc;
+    border: 1px solid #b8daff;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 0.92em;
+  }
+
+  footer {
+    text-align: center;
+    padding: 30px 20px;
+    font-size: 0.85em;
+    color: #888;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Chapter 1: Introduction</h1>
+  <h2>第一章：引言</h2>
+  <div class="meta">Reinforcement Learning: An Introduction (2nd Edition) — Sutton &amp; Barto</div>
+</div>
+
+<div class="container">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>目录 / Table of Contents</h3>
+    <ol>
+      <li><a href="#intro">开篇引言 / Opening</a></li>
+      <li><a href="#s1-1">1.1 什么是强化学习 / Reinforcement Learning</a></li>
+      <li><a href="#s1-2">1.2 实例 / Examples</a></li>
+      <li><a href="#s1-3">1.3 强化学习的要素 / Elements of RL</a></li>
+      <li><a href="#s1-4">1.4 局限性与适用范围 / Limitations and Scope</a></li>
+      <li><a href="#s1-5">1.5 扩展实例：井字棋 / Tic-Tac-Toe</a></li>
+      <li><a href="#s1-6">1.6 本章小结 / Summary</a></li>
+      <li><a href="#s1-7">1.7 早期历史 / Early History</a></li>
+    </ol>
+  </div>
+
+  <!-- Opening -->
+  <div class="section" id="intro">
+    <h3>开篇引言 / Opening</h3>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        The idea that we learn by interacting with our environment is probably the first to occur to us when we think about the nature of learning. When an infant plays, waves its arms, or looks about, it has no explicit teacher, but it does have a direct sensorimotor connection to its environment. Exercising this connection produces a wealth of information about cause and effect, about the consequences of actions, and about what to do in order to achieve goals.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        当我们思考学习的本质时，最先想到的大概就是通过与环境的交互来学习这一理念。婴儿在玩耍、挥动手臂或四处张望时，虽然没有明确的教师指导，但它与环境之间有着直接的感觉运动连接。运用这种连接能够产生大量关于因果关系、行为后果以及如何实现目标的信息。
+      </div>
+    </div>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Throughout our lives, such interactions are undoubtedly a major source of knowledge about our environment and ourselves. Whether we are learning to drive a car or to hold a conversation, we are acutely aware of how our environment responds to what we do, and we seek to influence what happens through our behavior. Learning from interaction is a foundational idea underlying nearly all theories of learning and intelligence.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        在我们的一生中，这类交互无疑是关于环境和自身知识的主要来源。无论是学习开车还是进行对话，我们都深切感受到环境对我们行为的反应，并试图通过自身行为来影响所发生的事情。<span class="key-term">从交互中学习</span>是几乎所有学习和智能理论的基础性思想。
+      </div>
+    </div>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        In this book we explore a computational approach to learning from interaction. Rather than directly theorizing about how people or animals learn, we primarily explore idealized learning situations and evaluate the effectiveness of various learning methods. That is, we adopt the perspective of an artificial intelligence researcher or engineer. The approach we explore, called <b>reinforcement learning</b>, is much more focused on goal-directed learning from interaction than are other approaches to machine learning.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        在本书中，我们探索一种从交互中学习的计算方法。我们并不直接对人或动物的学习方式进行理论化，而是主要探索理想化的学习情境并评估各种学习方法的有效性——也就是说，我们采用人工智能研究者或工程师的视角。我们所探索的方法称为<span class="key-term">强化学习（reinforcement learning）</span>，它比其他机器学习方法更专注于从交互中进行目标导向的学习。
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.1 -->
+  <div class="section" id="s1-1">
+    <h3>1.1 强化学习 / Reinforcement Learning</h3>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        <b>Reinforcement learning</b> is learning what to do—how to map situations to actions—so as to maximize a numerical reward signal. The learner is not told which actions to take, but instead must discover which actions yield the most reward by trying them. In the most interesting and challenging cases, actions may affect not only the immediate reward but also the next situation and, through that, all subsequent rewards.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        <span class="key-term">强化学习</span>是学习应该怎么做——即如何将情境映射到动作——以最大化数值奖励信号。学习者不会被告知应该采取哪些动作，而是必须通过尝试来发现哪些动作能带来最多奖励。在最有趣且最具挑战性的情况下，动作不仅可能影响即时奖励，还可能影响下一个情境，进而影响所有后续奖励。
+      </div>
+    </div>
+
+    <div class="note">
+      <b>两大核心特征 / Two Key Characteristics:</b><br>
+      <span style="color:var(--en-color)">Trial-and-error search</span>（试错搜索）&amp; <span style="color:var(--en-color)">Delayed reward</span>（延迟奖励）
+    </div>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Reinforcement learning, like many topics whose names end with "ing," such as machine learning and mountaineering, is simultaneously <b>a problem</b>, <b>a class of solution methods</b> that work well on the problem, and <b>the field</b> that studies this problem and its solution methods. It is convenient to use a single name for all three things, but at the same time essential to keep the three conceptually separate.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习和许多以"学"结尾的主题一样（如机器学习、登山），同时指代三件事：<b>一个问题</b>、<b>一类能有效解决该问题的方法</b>，以及<b>研究该问题及其解决方法的领域</b>。使用同一个名称来指代这三者很方便，但在概念上将三者区分开来至关重要。
+      </div>
+    </div>
+
+    <h4>与监督学习的区别 / Difference from Supervised Learning</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Reinforcement learning is different from <b>supervised learning</b>, the kind of learning studied in most current research in the field of machine learning. Supervised learning is learning from a training set of labeled examples provided by a knowledgeable external supervisor. … In interactive problems it is often impractical to obtain examples of desired behavior that are both correct and representative of all the situations in which the agent has to act. In uncharted territory—where one would expect learning to be most beneficial—an agent must be able to learn from its own experience.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习不同于<span class="key-term">监督学习</span>（supervised learning），后者是当前机器学习领域大多数研究的学习类型。监督学习是从一位知识渊博的外部监督者提供的带标签训练样本集中学习。……在交互式问题中，要获得既正确又能代表智能体需要应对的所有情境的期望行为示例，往往是不切实际的。在未知领域——也就是人们期望学习最能发挥作用的地方——智能体必须能够从自身经验中学习。
+      </div>
+    </div>
+
+    <h4>与无监督学习的区别 / Difference from Unsupervised Learning</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Reinforcement learning is also different from what machine learning researchers call <b>unsupervised learning</b>, which is typically about finding structure hidden in collections of unlabeled data. … reinforcement learning is trying to maximize a reward signal instead of trying to find hidden structure. … We therefore consider reinforcement learning to be a <b>third machine learning paradigm</b>, alongside supervised learning and unsupervised learning and perhaps other paradigms.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习也不同于机器学习研究者所称的<span class="key-term">无监督学习</span>（unsupervised learning），后者通常是在无标签数据集合中寻找隐藏结构。……强化学习试图最大化奖励信号，而不是寻找隐藏结构。……因此，我们认为强化学习是继监督学习和无监督学习之后的<b>第三种机器学习范式</b>。
+      </div>
+    </div>
+
+    <h4>探索与利用的困境 / Exploration–Exploitation Dilemma</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        One of the challenges that arise in reinforcement learning, and not in other kinds of learning, is the trade-off between <b>exploration and exploitation</b>. To obtain a lot of reward, a reinforcement learning agent must prefer actions that it has tried in the past and found to be effective in producing reward. But to discover such actions, it has to try actions that it has not selected before. The agent has to exploit what it has already experienced in order to obtain reward, but it also has to explore in order to make better action selections in the future.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习中出现而其他类型学习中不存在的一个挑战是<span class="key-term">探索与利用的权衡</span>（exploration–exploitation trade-off）。为了获得大量奖励，强化学习智能体必须偏好过去尝试过且发现能有效产生奖励的动作。但要发现这些动作，它又必须尝试之前未曾选择过的动作。智能体必须利用已有经验来获取奖励，同时也必须探索以便在未来做出更好的动作选择。
+      </div>
+    </div>
+
+    <h4>完整交互式目标导向智能体 / Complete, Interactive, Goal-Seeking Agent</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Another key feature of reinforcement learning is that it explicitly considers the whole problem of a goal-directed agent interacting with an uncertain environment. … Reinforcement learning takes the opposite tack, starting with a complete, interactive, goal-seeking agent. All reinforcement learning agents have explicit goals, can sense aspects of their environments, and can choose actions to influence their environments.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习的另一个关键特征是它明确考虑了一个目标导向的智能体与不确定环境进行交互的完整问题。……强化学习采取了相反的策略，从一个完整的、交互式的、目标导向的智能体出发。所有强化学习智能体都有明确的目标，能够感知环境的各方面，并可以选择动作来影响其环境。
+      </div>
+    </div>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        One of the most exciting aspects of modern reinforcement learning is its substantive and fruitful interactions with other engineering and scientific disciplines. … Of all the forms of machine learning, reinforcement learning is the closest to the kind of learning that humans and other animals do, and many of the core algorithms of reinforcement learning were originally inspired by biological learning systems.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        现代强化学习最令人兴奋的方面之一是它与其他工程和科学学科的实质性且富有成效的交叉互动。……在所有机器学习形式中，强化学习最接近人类和其他动物的学习方式，而且许多核心强化学习算法最初的灵感就来自于生物学习系统。
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.2 Examples -->
+  <div class="section" id="s1-2">
+    <h3>1.2 实例 / Examples</h3>
+    <p style="margin-bottom:12px;">以下实例展示了强化学习的广泛应用场景：</p>
+    <ul class="example-list">
+      <li>
+        <div class="bilingual">
+          <div class="en"><span class="label">EN</span>A master chess player makes a move. The choice is informed both by planning—anticipating possible replies and counterreplies—and by immediate, intuitive judgments of the desirability of particular positions and moves.</div>
+          <div class="cn"><span class="label">中文</span><b>国际象棋大师</b>走一步棋。这一选择既基于规划——预判对手可能的回应与反击——也基于对特定局面和走法好坏的即时直觉判断。</div>
+        </div>
+      </li>
+      <li>
+        <div class="bilingual">
+          <div class="en"><span class="label">EN</span>An adaptive controller adjusts parameters of a petroleum refinery's operation in real time. The controller optimizes the yield/cost/quality trade-off on the basis of specified marginal costs without sticking strictly to the set points originally suggested by engineers.</div>
+          <div class="cn"><span class="label">中文</span><b>自适应控制器</b>实时调整炼油厂的运行参数。控制器根据给定的边际成本优化产量/成本/质量的权衡，而非严格遵循工程师最初建议的设定点。</div>
+        </div>
+      </li>
+      <li>
+        <div class="bilingual">
+          <div class="en"><span class="label">EN</span>A gazelle calf struggles to its feet minutes after being born. Half an hour later it is running at 20 miles per hour.</div>
+          <div class="cn"><span class="label">中文</span>一只<b>小瞪羚</b>在出生几分钟后挣扎着站起来。半小时后它就能以每小时32公里的速度奔跑。</div>
+        </div>
+      </li>
+      <li>
+        <div class="bilingual">
+          <div class="en"><span class="label">EN</span>A mobile robot decides whether it should enter a new room in search of more trash to collect or start trying to find its way back to its battery recharging station.</div>
+          <div class="cn"><span class="label">中文</span><b>移动机器人</b>决定是进入新房间寻找更多垃圾，还是开始寻找返回充电站的路。</div>
+        </div>
+      </li>
+      <li>
+        <div class="bilingual">
+          <div class="en"><span class="label">EN</span>Phil prepares his breakfast. Closely examined, even this apparently mundane activity reveals a complex web of conditional behavior and interlocking goal–subgoal relationships.</div>
+          <div class="cn"><span class="label">中文</span><b>Phil 准备早餐</b>。仔细观察，即使这种看似平凡的活动也揭示了一个由条件行为和相互交织的目标—子目标关系构成的复杂网络。</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- 1.3 Elements -->
+  <div class="section" id="s1-3">
+    <h3>1.3 强化学习的要素 / Elements of Reinforcement Learning</h3>
+    <p style="margin-bottom:16px;">除了智能体和环境之外，强化学习系统有四个主要子元素：</p>
+
+    <h4>1. 策略 (Policy)</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        A <b>policy</b> defines the learning agent's way of behaving at a given time. Roughly speaking, a policy is a mapping from perceived states of the environment to actions to be taken when in those states. It corresponds to what in psychology would be called a set of stimulus–response rules or associations. The policy is the core of a reinforcement learning agent in the sense that it alone is sufficient to determine behavior.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        <span class="key-term">策略（policy）</span>定义了学习智能体在给定时刻的行为方式。粗略地说，策略是从感知到的环境状态到要采取的动作的映射。它对应于心理学中所说的刺激-反应规则或关联集合。策略是强化学习智能体的核心，因为仅凭它就足以决定行为。
+      </div>
+    </div>
+
+    <h4>2. 奖励信号 (Reward Signal)</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        A <b>reward signal</b> defines the goal of a reinforcement learning problem. On each time step, the environment sends to the reinforcement learning agent a single number called the <b>reward</b>. The agent's sole objective is to maximize the total reward it receives over the long run. … In a biological system, we might think of rewards as analogous to the experiences of pleasure or pain.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        <span class="key-term">奖励信号（reward signal）</span>定义了强化学习问题的目标。在每个时间步，环境向强化学习智能体发送一个称为<b>奖励</b>的数值。智能体的唯一目标是最大化长期获得的总奖励。……在生物系统中，我们可以将奖励类比为愉悦或痛苦的经历。
+      </div>
+    </div>
+
+    <h4>3. 价值函数 (Value Function)</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Whereas the reward signal indicates what is good in an immediate sense, a <b>value function</b> specifies what is good in the long run. Roughly speaking, the value of a state is the total amount of reward an agent can expect to accumulate over the future, starting from that state. … Rewards are in a sense primary, whereas values, as predictions of rewards, are secondary. Without rewards there could be no values, and the only purpose of estimating values is to achieve more reward.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        奖励信号表示什么是即时意义上的好，而<span class="key-term">价值函数（value function）</span>则指明了长远来看什么是好的。粗略地说，一个状态的价值是智能体从该状态出发，预期在未来能累积的总奖励量。……奖励在某种意义上是首要的，而价值作为对奖励的预测则是次要的。没有奖励就不可能有价值，估计价值的唯一目的就是获得更多奖励。
+      </div>
+    </div>
+    <div class="note">
+      <b>核心洞见 / Key Insight:</b><br>
+      价值估计（value estimation）可以说是过去六十年来强化学习中最重要的发现。几乎所有强化学习算法的核心组件都是一种高效估计价值的方法。
+    </div>
+
+    <h4>4. 环境模型 (Model of the Environment) [可选]</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        The fourth and final element of some reinforcement learning systems is a <b>model of the environment</b>. This is something that mimics the behavior of the environment, or more generally, that allows inferences to be made about how the environment will behave. … Methods for solving reinforcement learning problems that use models and planning are called <b>model-based methods</b>, as opposed to simpler <b>model-free methods</b> that are explicitly trial-and-error learners.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        某些强化学习系统的第四个也是最后一个元素是<span class="key-term">环境模型（model of the environment）</span>。它是模仿环境行为的东西，或更一般地说，允许对环境将如何行为做出推断。……使用模型和规划的强化学习方法称为<b>基于模型的方法（model-based methods）</b>，与之相对的是更简单的<b>无模型方法（model-free methods）</b>，后者是纯粹的试错学习者。
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.4 -->
+  <div class="section" id="s1-4">
+    <h3>1.4 局限性与适用范围 / Limitations and Scope</h3>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Reinforcement learning relies heavily on the concept of <b>state</b>—as input to the policy and value function, and as both input to and output from the model. Informally, we can think of the state as a signal conveying to the agent some sense of "how the environment is" at a particular time. … We do not address the issues of constructing, changing, or learning the state signal in this book. We take this approach not because we consider state representation to be unimportant, but in order to focus fully on the decision-making issues.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习严重依赖<b>状态（state）</b>的概念——作为策略和价值函数的输入，以及模型的输入和输出。非正式地说，我们可以将状态视为向智能体传达"环境当前是什么样子"的信号。……本书不讨论状态的构建、改变或学习问题。我们采取这种方法不是因为认为状态表示不重要，而是为了完全聚焦于决策问题。
+      </div>
+    </div>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Most of the reinforcement learning methods we consider in this book are structured around estimating value functions, but it is not strictly necessary to do this to solve reinforcement learning problems. For example, solution methods such as genetic algorithms, genetic programming, simulated annealing, and other optimization methods never estimate value functions. We call these <b>evolutionary methods</b>.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        本书中讨论的大多数强化学习方法都围绕估计价值函数来构建，但严格来说解决强化学习问题并非必须这样做。例如，遗传算法、遗传编程、模拟退火等优化方法从不估计价值函数。我们称这些为<b>进化方法（evolutionary methods）</b>。
+      </div>
+    </div>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Our focus is on reinforcement learning methods that learn while interacting with the environment, which evolutionary methods do not do. Methods able to take advantage of the details of individual behavioral interactions can be much more efficient than evolutionary methods in many cases.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        我们的重点是在与环境交互的同时进行学习的强化学习方法，而进化方法做不到这一点。能够利用个体行为交互细节的方法在许多情况下比进化方法高效得多。
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.5 Tic-Tac-Toe -->
+  <div class="section" id="s1-5">
+    <h3>1.5 扩展实例：井字棋 / An Extended Example: Tic-Tac-Toe</h3>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Consider the familiar child's game of tic-tac-toe. Two players take turns playing on a three-by-three board. One player plays Xs and the other Os until one player wins by placing three marks in a row, horizontally, vertically, or diagonally. … Let us assume that we are playing against an imperfect player, one whose play is sometimes incorrect and allows us to win.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        考虑大家熟悉的井字棋游戏。两名棋手轮流在3×3的棋盘上对弈。一方执X，另一方执O，直到一方在水平、垂直或对角线上连成三个标记获胜。……假设我们的对手并不完美，有时会犯错让我们有机会赢。
+      </div>
+    </div>
+
+    <h4>价值函数方法 / Value Function Approach</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Here is how the tic-tac-toe problem would be approached with a method making use of a value function. First we would set up a table of numbers, one for each possible state of the game. Each number will be the latest estimate of the probability of our winning from that state. We treat this estimate as the state's <b>value</b>, and the whole table is the learned <b>value function</b>.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        以下是用价值函数方法来解决井字棋问题的方式。首先建立一张数字表，对应棋局的每个可能状态。每个数字是我们从该状态获胜概率的最新估计。我们将这个估计视为该状态的<b>价值</b>，整张表就是学到的<b>价值函数</b>。
+      </div>
+    </div>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Most of the time we move <b>greedily</b>, selecting the move that leads to the state with greatest value, that is, with the highest estimated probability of winning. Occasionally, however, we select randomly from among the other moves instead. These are called <b>exploratory moves</b> because they cause us to experience states that we might otherwise never see.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        大多数时候我们采取<b>贪婪（greedy）</b>策略，选择能到达最大价值状态的动作，即获胜概率估计最高的走法。但偶尔我们会从其他走法中随机选择，这些称为<span class="key-term">探索性走法（exploratory moves）</span>，因为它们让我们体验到否则可能永远不会看到的状态。
+      </div>
+    </div>
+
+    <h4>时序差分更新 / Temporal-Difference Update</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        While we are playing, we change the values of the states in which we find ourselves during the game. We attempt to make them more accurate estimates of the probabilities of winning. To do this, we "back up" the value of the state after each greedy move to the state before the move.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        在对弈过程中，我们改变自己所在状态的价值，试图使它们成为更准确的获胜概率估计。为此，我们将每次贪婪走法之后的状态值"回传"到走法之前的状态。
+      </div>
+    </div>
+
+    <div class="formula">
+      V(S<sub>t</sub>) ← V(S<sub>t</sub>) + α [ V(S<sub>t+1</sub>) − V(S<sub>t</sub>) ]
+    </div>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        where α is a small positive fraction called the <b>step-size parameter</b>, which influences the rate of learning. This update rule is an example of a <b>temporal-difference learning</b> method, so called because its changes are based on a difference, V(S<sub>t+1</sub>) − V(S<sub>t</sub>), between estimates at two successive times.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        其中 α 是一个小的正分数，称为<span class="key-term">步长参数（step-size parameter）</span>，它影响学习速率。这个更新规则是<span class="key-term">时序差分学习（temporal-difference learning）</span>方法的一个例子，之所以如此命名是因为其变化基于两个连续时刻估计值之间的差分 V(S<sub>t+1</sub>) − V(S<sub>t</sub>)。
+      </div>
+    </div>
+
+    <h4>关键洞察 / Key Insights from the Example</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        This example illustrates the differences between evolutionary methods and methods that learn value functions. To evaluate a policy an evolutionary method holds the policy fixed and plays many games against the opponent. … Value function methods, in contrast, allow individual states to be evaluated. … It is a striking feature of the reinforcement learning solution that it can achieve the effects of planning and lookahead without using a model of the opponent and without conducting an explicit search over possible sequences of future states and actions.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        这个例子展示了进化方法与价值函数学习方法之间的差异。进化方法通过固定策略并与对手进行大量对弈来评估策略。……相比之下，价值函数方法允许对各个状态进行单独评估。……强化学习解决方案的一个显著特点是，它无需使用对手模型，也无需对未来状态和动作的可能序列进行显式搜索，就能实现规划和前瞻的效果。
+      </div>
+    </div>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Tic-tac-toe has a relatively small, finite state set, whereas reinforcement learning can be used when the state set is very large, or even infinite. For example, Gerry Tesauro (1992, 1995) combined the algorithm described above with an artificial neural network to learn to play backgammon, which has approximately 10<sup>20</sup> states.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        井字棋拥有相对较小的有限状态集，而强化学习可以用于状态集非常大甚至无限的情况。例如，Gerry Tesauro（1992, 1995）将上述算法与人工神经网络相结合来学习玩西洋双陆棋，该棋约有 10<sup>20</sup> 个状态。
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.6 Summary -->
+  <div class="section" id="s1-6">
+    <h3>1.6 本章小结 / Summary</h3>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Reinforcement learning is a computational approach to understanding and automating goal-directed learning and decision making. It is distinguished from other computational approaches by its emphasis on learning by an agent from direct interaction with its environment, without requiring exemplary supervision or complete models of the environment. In our opinion, reinforcement learning is the first field to seriously address the computational issues that arise when learning from interaction with an environment in order to achieve long-term goals.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习是一种理解和自动化目标导向学习与决策的计算方法。它与其他计算方法的区别在于强调智能体通过与环境的直接交互来学习，无需典范性的监督或完整的环境模型。在我们看来，强化学习是第一个认真研究从与环境交互中学习以实现长期目标时所产生的计算问题的领域。
+      </div>
+    </div>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Reinforcement learning uses the formal framework of <b>Markov decision processes</b> to define the interaction between a learning agent and its environment in terms of states, actions, and rewards. This framework is intended to be a simple way of representing essential features of the artificial intelligence problem. These features include a sense of cause and effect, a sense of uncertainty and nondeterminism, and the existence of explicit goals.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习使用<span class="key-term">马尔可夫决策过程（Markov Decision Processes）</span>的形式框架，以状态、动作和奖励来定义学习智能体与环境之间的交互。该框架旨在以简洁的方式表示人工智能问题的本质特征，包括因果关系感、不确定性和非确定性感，以及明确目标的存在。
+      </div>
+    </div>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        The concepts of value and value function are key to most of the reinforcement learning methods that we consider in this book. We take the position that value functions are important for efficient search in the space of policies. The use of value functions distinguishes reinforcement learning methods from evolutionary methods that search directly in policy space guided by evaluations of entire policies.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        价值和价值函数的概念是本书中讨论的大多数强化学习方法的关键。我们认为价值函数对于在策略空间中进行高效搜索至关重要。价值函数的使用将强化学习方法与进化方法区分开来——后者直接在策略空间中搜索，以对完整策略的评估为指导。
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.7 Early History -->
+  <div class="section" id="s1-7">
+    <h3>1.7 强化学习的早期历史 / Early History of Reinforcement Learning</h3>
+
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        The early history of reinforcement learning has two main threads, both long and rich, that were pursued independently before intertwining in modern reinforcement learning. One thread concerns <b>learning by trial and error</b>, and originated in the psychology of animal learning. … The second thread concerns the problem of <b>optimal control</b> and its solution using value functions and dynamic programming. … The two threads were mostly independent, but became interrelated to some extent around a third, less distinct thread concerning <b>temporal-difference methods</b>.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        强化学习的早期历史有两条主线，都源远流长，各自独立发展后在现代强化学习中交织在一起。一条主线是关于<b>试错学习</b>的，起源于动物学习心理学。……第二条主线是关于<b>最优控制</b>问题及其使用价值函数和动态规划的解决方案。……这两条主线大多各自独立，但围绕第三条不太明显的主线——<b>时序差分方法</b>——在一定程度上产生了关联。
+      </div>
+    </div>
+
+    <h4>最优控制线程 / The Optimal Control Thread</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        The term "optimal control" came into use in the late 1950s to describe the problem of designing a controller to minimize or maximize a measure of a dynamical system's behavior over time. One of the approaches to this problem was developed in the mid-1950s by <b>Richard Bellman</b> and others through extending a nineteenth century theory of Hamilton and Jacobi. This approach uses the concepts of a dynamical system's state and of a value function, or "optimal return function," to define a functional equation, now often called the <b>Bellman equation</b>.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        "最优控制"一词在20世纪50年代末开始使用，用于描述设计控制器以最小化或最大化动态系统行为度量的问题。其中一种方法由<b>Richard Bellman</b>等人在50年代中期通过扩展Hamilton和Jacobi的19世纪理论而发展起来。这种方法使用动态系统的状态和价值函数（或"最优回报函数"）的概念来定义一个函数方程，现在通常称为<b>Bellman方程</b>。
+      </div>
+    </div>
+
+    <h4>试错学习线程 / The Trial-and-Error Thread</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        According to American psychologist R. S. Woodworth (1938) the idea of trial-and-error learning goes as far back as the 1850s to Alexander Bain's discussion of learning by "groping and experiment" and more explicitly to the British ethologist and psychologist Conway Lloyd Morgan's 1894 use of the term. Perhaps the first to succinctly express the essence of trial-and-error learning as a principle of learning was <b>Edward Thorndike</b>:<br><br>
+        <i>"Of several responses made to the same situation, those which are accompanied or closely followed by satisfaction to the animal will, other things being equal, be more firmly connected with the situation…"</i> (Thorndike, 1911)
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        据美国心理学家 R. S. Woodworth（1938）记载，试错学习的思想最早可追溯到19世纪50年代 Alexander Bain 关于"摸索和实验"学习的讨论，更明确地追溯到英国动物行为学家和心理学家 Conway Lloyd Morgan 在1894年使用该术语。也许最早简洁地表达试错学习本质的人是<b>Edward Thorndike</b>：<br><br>
+        <i>"在对同一情境做出的若干反应中，那些伴随或紧随着动物满足感的反应，在其他条件相同的情况下，会更牢固地与该情境联系在一起……"</i>（Thorndike, 1911）
+      </div>
+    </div>
+    <div class="note">
+      Thorndike 将此称为<b>"效果律"（Law of Effect）</b>，因为它描述了强化事件对动作选择倾向的影响。
+    </div>
+
+    <h4>人工智能中的早期探索 / Early AI Explorations</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        The idea of implementing trial-and-error learning in a computer appeared among the earliest thoughts about the possibility of artificial intelligence. In a 1948 report, <b>Alan Turing</b> described a design for a "pleasure-pain system" that worked along the lines of the Law of Effect. Many ingenious electro-mechanical machines were constructed, including Thomas Ross's (1933) maze-solving machine, W. Grey Walter's "mechanical tortoise" (1951), Claude Shannon's maze-running mouse <b>Theseus</b> (1952), and Marvin Minsky's SNARC (1954).
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        在计算机中实现试错学习的想法出现在关于人工智能可能性的最早思考中。在1948年的报告中，<b>Alan Turing</b> 描述了一种按照效果律运作的"快乐-痛苦系统"设计。人们构建了许多精巧的机电学习机器，包括 Thomas Ross（1933）的迷宫求解机器、W. Grey Walter 的"机械龟"（1951）、Claude Shannon 的迷宫老鼠<b>Theseus</b>（1952）以及 Marvin Minsky 的 SNARC（1954）。
+      </div>
+    </div>
+
+    <h4>时序差分学习线程 / The Temporal-Difference Thread</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        Temporal-difference learning methods are distinctive in being driven by the difference between temporally successive estimates of the same quantity. … <b>Arthur Samuel</b> (1959) was the first to propose and implement a learning method that included temporal-difference ideas, as part of his celebrated checkers-playing program. … The temporal-difference and optimal control threads were fully brought together in 1989 with <b>Chris Watkins's</b> development of <b>Q-learning</b>.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        时序差分学习方法的独特之处在于它由同一量的时间连续估计之间的差异驱动。……<b>Arthur Samuel</b>（1959）首次提出并实现了一种包含时序差分思想的学习方法，作为其著名的跳棋程序的一部分。……时序差分和最优控制两条主线在1989年随着<b>Chris Watkins</b> 发展<b>Q-learning</b>而完全融合。
+      </div>
+    </div>
+
+    <h4>神经科学的连接 / The Neuroscience Connection</h4>
+    <div class="bilingual">
+      <div class="en">
+        <span class="label">English</span>
+        In the time since publication of the first edition of this book, a flourishing subfield of neuroscience developed that focuses on the relationship between reinforcement learning algorithms and reinforcement learning in the nervous system. Most responsible for this is an uncanny similarity between the behavior of temporal-difference algorithms and the activity of <b>dopamine producing neurons</b> in the brain.
+      </div>
+      <div class="cn">
+        <span class="label">中文</span>
+        自本书第一版出版以来，一个蓬勃发展的神经学子领域逐渐形成，专注于强化学习算法与神经系统中强化学习之间的关系。最主要的推动力是时序差分算法的行为与大脑中<b>多巴胺能神经元</b>活动之间惊人的相似性。
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Concepts Summary Table -->
+  <div class="section">
+    <h3>核心概念速查 / Key Concepts at a Glance</h3>
+    <table style="width:100%; border-collapse:collapse; font-size:0.93em;">
+      <thead>
+        <tr style="background:#f0f4f8;">
+          <th style="padding:10px 12px; text-align:left; border-bottom:2px solid var(--accent);">English Term</th>
+          <th style="padding:10px 12px; text-align:left; border-bottom:2px solid var(--accent);">中文术语</th>
+          <th style="padding:10px 12px; text-align:left; border-bottom:2px solid var(--accent);">简要说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style="padding:8px 12px; border-bottom:1px solid #eee;">Reinforcement Learning</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">强化学习</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">通过与环境交互来学习如何最大化奖励信号</td></tr>
+        <tr style="background:#fafafa;"><td style="padding:8px 12px; border-bottom:1px solid #eee;">Policy</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">策略</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">状态到动作的映射，决定智能体行为的核心</td></tr>
+        <tr><td style="padding:8px 12px; border-bottom:1px solid #eee;">Reward Signal</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">奖励信号</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">定义目标的即时反馈信号</td></tr>
+        <tr style="background:#fafafa;"><td style="padding:8px 12px; border-bottom:1px solid #eee;">Value Function</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">价值函数</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">对未来累积奖励的预测，长期视角</td></tr>
+        <tr><td style="padding:8px 12px; border-bottom:1px solid #eee;">Model of Environment</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">环境模型</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">模拟环境行为，用于规划（可选）</td></tr>
+        <tr style="background:#fafafa;"><td style="padding:8px 12px; border-bottom:1px solid #eee;">Exploration vs. Exploitation</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">探索 vs. 利用</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">尝试新动作 vs. 使用已知好动作的权衡</td></tr>
+        <tr><td style="padding:8px 12px; border-bottom:1px solid #eee;">Model-based / Model-free</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">有模型 / 无模型</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">是否使用环境模型来辅助决策</td></tr>
+        <tr style="background:#fafafa;"><td style="padding:8px 12px; border-bottom:1px solid #eee;">Temporal-Difference (TD)</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">时序差分</td><td style="padding:8px 12px; border-bottom:1px solid #eee;">基于连续时刻估计差异的学习方法</td></tr>
+        <tr><td style="padding:8px 12px;">Markov Decision Process (MDP)</td><td style="padding:8px 12px;">马尔可夫决策过程</td><td style="padding:8px 12px;">强化学习问题的数学形式化框架</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>
+  Source: <em>Reinforcement Learning: An Introduction</em> (2nd Edition) by Richard S. Sutton &amp; Andrew G. Barto<br>
+  本页面仅供学习参考使用 / For educational purposes only
+</footer>
+
+</body>
+</html>

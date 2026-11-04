@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 11: Off-policy Methods with Approximation | 第十一章：近似方法的Off-policy学习</title>
+<style>
+:root { --accent: #4a148c; --accent-light: #f3e5f5; --highlight: #fff59d; --bg: #f5f7fa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #333; line-height: 1.8; }
+.hero { background: linear-gradient(135deg, #311b92, #4a148c, #6a1b9a); color: white; padding: 60px 20px; text-align: center; }
+.hero h1 { font-size: 2.1em; margin-bottom: 10px; }
+.hero h2 { font-size: 1.4em; font-weight: 300; opacity: 0.9; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.toc { background: white; border-radius: 12px; padding: 30px; margin: 30px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.toc h3 { color: var(--accent); margin-bottom: 15px; }
+.toc ul { list-style: none; columns: 2; }
+.toc li { padding: 5px 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.section { background: white; border-radius: 12px; padding: 30px; margin: 25px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.section h3 { color: var(--accent); font-size: 1.5em; margin-bottom: 20px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }
+.bilingual { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0; }
+.en { border-left: 4px solid var(--accent); background: var(--accent-light); padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.cn { border-left: 4px solid #e74c3c; background: #fdf5f3; padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.key-term { background: var(--highlight); padding: 1px 6px; font-weight: 600; border-radius: 3px; }
+.formula { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0; text-align: center; font-family: 'Cambria Math', serif; font-size: 1.05em; overflow-x: auto; }
+.pseudo { background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.88em; line-height: 1.6; margin: 15px 0; overflow-x: auto; white-space: pre-wrap; }
+.note { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.note-warn { background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.note-danger { background: #fce4ec; border-left: 4px solid #c62828; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+table.summary { width: 100%; border-collapse: collapse; margin: 15px 0; }
+table.summary th { background: var(--accent); color: white; padding: 12px 15px; text-align: left; }
+table.summary td { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; }
+table.summary tr:nth-child(even) { background: #f8f9fa; }
+.triad { display: flex; justify-content: center; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+.triad div { padding: 20px; border-radius: 12px; text-align: center; flex: 1; min-width: 200px; color: white; font-weight: 600; }
+@media (max-width: 768px) { .bilingual { grid-template-columns: 1fr; } .toc ul { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>Chapter 11: *Off-policy Methods with Approximation</h1>
+<h2>第十一章：*近似方法的Off-policy学习</h2>
+</div>
+<div class="container">
+
+<div class="toc">
+<h3>📑 目录 / Table of Contents</h3>
+<ul>
+<li><a href="#s1">11.1 半梯度方法 / Semi-gradient Methods</a></li>
+<li><a href="#s2">11.2 Off-policy发散实例</a></li>
+<li><a href="#s3">11.3 致命三要素 / The Deadly Triad</a></li>
+<li><a href="#s4">11.4 线性价值函数几何</a></li>
+<li><a href="#s5">11.5 Bellman误差的梯度下降</a></li>
+<li><a href="#s6">11.6 Bellman误差不可学习</a></li>
+<li><a href="#s7">11.7 Gradient-TD方法</a></li>
+<li><a href="#s8">11.8 Emphatic-TD方法</a></li>
+<li><a href="#s9">11.9 减少方差 / Reducing Variance</a></li>
+<li><a href="#s10">11.10 小结 / Summary</a></li>
+</ul>
+</div>
+
+<!-- 引言 -->
+<div class="section">
+<h3>引言 / Introduction</h3>
+<div class="bilingual">
+<div class="en">The extension to function approximation is <b>significantly different and harder</b> for off-policy learning than for on-policy. Tabular off-policy methods extend to semi-gradient algorithms, but these <b>do not converge as robustly</b> as under on-policy training. This chapter explores convergence problems, linear theory, learnability, and new algorithms with stronger guarantees.</div>
+<div class="cn">函数近似的扩展在off-policy学习中比on-policy<b>显著不同且更难</b>。表格off-policy方法可扩展为半梯度算法，但这些算法<b>不像on-policy训练那样鲁棒地收敛</b>。本章探讨收敛问题、线性理论、可学习性和具有更强保证的新算法。</div>
+</div>
+<div class="bilingual">
+<div class="en">The challenge of off-policy learning has two parts:
+<ul style="margin-top:8px;">
+<li><b>Part 1</b> (tabular): correcting the update <i>target</i> — addressed by importance sampling</li>
+<li><b>Part 2</b> (function approx only): the update <i>distribution</i> doesn't match on-policy — causes instability</li>
+</ul></div>
+<div class="cn">Off-policy学习的挑战有两部分：
+<ul style="margin-top:8px;">
+<li><b>第1部分</b>（表格）：修正更新<i>目标</i>——通过重要性采样解决</li>
+<li><b>第2部分</b>（仅函数近似）：更新<i>分布</i>不匹配on-policy——导致不稳定</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 11.1 -->
+<div class="section" id="s1">
+<h3>11.1 半梯度方法 / Semi-gradient Methods</h3>
+<div class="bilingual">
+<div class="en">To convert tabular off-policy algorithms to semi-gradient form, replace array updates with weight vector updates using approximate value functions and gradients. The <span class="key-term">per-step importance sampling ratio</span>:</div>
+<div class="cn">将表格off-policy算法转为半梯度形式，用近似价值函数和梯度将数组更新替换为权重向量更新。<span class="key-term">逐步重要性采样比率</span>：</div>
+</div>
+<div class="formula">ρ<sub>t</sub> = π(A<sub>t</sub>|S<sub>t</sub>) / b(A<sub>t</sub>|S<sub>t</sub>)</div>
+<div class="bilingual">
+<div class="en"><b>Semi-gradient off-policy TD(0)</b> (state values):<br>
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αρ<sub>t</sub>δ<sub>t</sub>∇v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>)</div>
+<div class="cn"><b>半梯度off-policy TD(0)</b>（状态价值）：<br>
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αρ<sub>t</sub>δ<sub>t</sub>∇v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>)</div>
+</div>
+<div class="bilingual">
+<div class="en">For <b>action values</b>, the one-step algorithm is semi-gradient Expected Sarsa (no importance sampling needed for the single action). Multi-step algorithms use ρ<sub>t+1</sub>···ρ<sub>t+n−1</sub>. The <b>tree backup algorithm</b> (from Ch.7) needs no importance sampling at all.</div>
+<div class="cn">对于<b>动作价值</b>，单步算法是半梯度Expected Sarsa（单动作不需要重要性采样）。多步算法使用ρ<sub>t+1</sub>···ρ<sub>t+n−1</sub>。<b>树备份算法</b>（第7章）完全不需要重要性采样。</div>
+</div>
+<div class="note-warn">
+<strong>⚠️ 注意：</strong>这些半梯度方法解决了off-policy挑战的第1部分（修正目标），但没有解决第2部分（修正分布）。因此，它们在某些情况下可能<b>发散</b>。
+</div>
+</div>
+
+<!-- 11.2 -->
+<div class="section" id="s2">
+<h3>11.2 Off-policy发散实例 / Examples of Divergence</h3>
+<div class="bilingual">
+<div class="en"><b>Simple w-to-2w example:</b> Two states with values w and 2w. Transition from state 1→2 with reward 0. TD error = (2γ−1)w. Update: w<sub>t+1</sub> = (1+α(2γ−1))w<sub>t</sub>. If γ > 0.5, the factor exceeds 1 and <b>w diverges to infinity</b>. This is only possible off-policy because ρ<sub>t</sub>=0 on other transitions prevents counter-balancing updates.</div>
+<div class="cn"><b>简单w到2w的例子：</b>两个状态，值为w和2w。从状态1→2的转移，奖励为0。TD误差=(2γ−1)w。更新：w<sub>t+1</sub>=(1+α(2γ−1))w<sub>t</sub>。如果γ>0.5，因子超过1，<b>w发散到无穷大</b>。这仅在off-policy中可能，因为其他转移上ρ<sub>t</sub>=0阻止了平衡更新。</div>
+</div>
+<div class="bilingual">
+<div class="en"><strong>Baird's Counterexample (Figure 11.1):</strong> A 7-state, 2-action MDP. Behavior policy selects dashed/solid actions with prob 6/7 and 1/7 (uniform next-state distribution). Target policy always takes solid action (→ state 7). Linear parameterization with 8 features. <b>Semi-gradient TD(0) and even DP diverge</b> for any positive step size! Changing to on-policy distribution guarantees convergence.</div>
+<div class="cn"><strong>Baird反例（图11.1）：</strong>7状态、2动作MDP。行为策略以6/7和1/7的概率选择虚线/实线动作（均匀的下一状态分布）。目标策略始终选择实线动作（→状态7）。8个特征的线性参数化。<b>半梯度TD(0)甚至DP都发散</b>（任意正步长）！改为on-policy分布则保证收敛。</div>
+</div>
+<div class="bilingual">
+<div class="en"><strong>Tsitsiklis & Van Roy's Counterexample:</strong> Even finding the <b>least-squares best approximation</b> at each DP step doesn't prevent divergence. The w-to-2w example extended with a terminal state shows w<sub>k+1</sub> = (6−4ε)/(5−4ε) · w<sub>k</sub>, which diverges when γ > 5/(6−4ε).</div>
+<div class="cn"><strong>Tsitsiklis和Van Roy的反例：</strong>即使在每步DP中找到<b>最小二乘最佳近似</b>也无法防止发散。w到2w的例子加上终止状态显示w<sub>k+1</sub>=(6−4ε)/(5−4ε)·w<sub>k</sub>，当γ>5/(6−4ε)时发散。</div>
+</div>
+<div class="note">
+<strong>💡 Averagers（平均器）：</strong>不推断观测目标之外的函数近似方法（如最近邻、局部加权回归）可保证稳定性，但瓦片编码和ANN等流行方法不在其中。
+</div>
+</div>
+
+<!-- 11.3 -->
+<div class="section" id="s3">
+<h3>11.3 致命三要素 / The Deadly Triad</h3>
+<div class="bilingual">
+<div class="en">The danger of instability and divergence arises whenever <b>all three</b> of the following are combined:</div>
+<div class="cn">不稳定和发散的危险在以下<b>三者同时</b>结合时出现：</div>
+</div>
+
+<div class="triad">
+<div style="background:#c62828;">🔴 函数近似<br><small>Function Approximation</small><br><small style="font-weight:normal">线性/ANN等可扩展的泛化方法</small></div>
+<div style="background:#e65100;">🟠 自举<br><small>Bootstrapping</small><br><small style="font-weight:normal">使用现有估计作为更新目标</small></div>
+<div style="background:#1565c0;">🔵 Off-policy训练<br><small>Off-policy Training</small><br><small style="font-weight:normal">非目标策略产生的转移分布</small></div>
+</div>
+
+<div class="bilingual">
+<div class="en">The danger is <b>not</b> due to control, GPI, learning, or environmental uncertainty — it arises in the simpler prediction case and even in planning (DP) with known environments. If any <b>two</b> elements are present but not all three, instability can be avoided. Can any be given up?</div>
+<div class="cn">危险<b>不是</b>由控制、GPI、学习或环境不确定性导致的——它出现在更简单的预测情况中，甚至在已知环境的规划（DP）中。如果只有<b>两个</b>要素而非三个，可避免不稳定。能放弃哪个？</div>
+</div>
+<div class="bilingual">
+<div class="en"><ul>
+<li><b>Function approximation</b>: Cannot give up — needed for large problems</li>
+<li><b>Bootstrapping</b>: Possible to give up, but costly — loses computational and data efficiency</li>
+<li><b>Off-policy</b>: Possible to give up (use Sarsa instead of Q-learning), but essential for parallel learning from one experience stream</li>
+</ul></div>
+<div class="cn"><ul>
+<li><b>函数近似</b>：不能放弃——大问题所需</li>
+<li><b>自举</b>：可以放弃但代价高——损失计算和数据效率</li>
+<li><b>Off-policy</b>：可以放弃（用Sarsa代替Q-learning），但对于从一条经验流并行学习是必不可少的</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 11.4 -->
+<div class="section" id="s4">
+<h3>11.4 线性价值函数几何 / Linear Value-function Geometry</h3>
+<div class="bilingual">
+<div class="en">With linear approximation, the representable value functions form a <b>plane</b> (subspace) in the |S|-dimensional space. Key geometric concepts:
+<ul style="margin-top:8px;">
+<li><span class="key-term">Projection operator Π</span>: maps any value function to its closest representable one (in µ-norm)</li>
+<li><span class="key-term">Bellman operator B<sub>π</sub></span>: takes representable v<sub>w</sub> to B<sub>π</sub>v<sub>w</sub>, generally <i>outside</i> the subspace</li>
+<li><b>VE</b> = ‖v<sub>w</sub> − v<sub>π</sub>‖<sup>2</sup><sub>µ</sub> — minimized at Πv<sub>π</sub> (MC solution)</li>
+<li><b>BE</b> = ‖B<sub>π</sub>v<sub>w</sub> − v<sub>w</sub>‖<sup>2</sup><sub>µ</sub> — Bellman error, minimized at a different point</li>
+<li><b>PBE</b> = ‖Π(B<sub>π</sub>v<sub>w</sub> − v<sub>w</sub>)‖<sup>2</sup><sub>µ</sub> — projected Bellman error, zero at <b>TD fixed point w<sub>TD</sub></b></li>
+</ul></div>
+<div class="cn">在线性近似下，可表示的价值函数在|S|维空间中形成一个<b>平面</b>（子空间）。关键几何概念：
+<ul style="margin-top:8px;">
+<li><span class="key-term">投影算子Π</span>：将任何价值函数映射到最近的可表示函数（µ-范数）</li>
+<li><span class="key-term">Bellman算子B<sub>π</sub></span>：将可表示的v<sub>w</sub>映射到B<sub>π</sub>v<sub>w</sub>，通常在子空间<i>之外</i></li>
+<li><b>VE</b>=‖v<sub>w</sub>−v<sub>π</sub>‖<sup>2</sup><sub>µ</sub>——在Πv<sub>π</sub>处最小化（MC解）</li>
+<li><b>BE</b>=‖B<sub>π</sub>v<sub>w</sub>−v<sub>w</sub>‖<sup>2</sup><sub>µ</sub>——Bellman误差，在不同点最小化</li>
+<li><b>PBE</b>=‖Π(B<sub>π</sub>v<sub>w</sub>−v<sub>w</sub>)‖<sup>2</sup><sub>µ</sub>——投影Bellman误差，在<b>TD不动点w<sub>TD</sub></b>处为零</li>
+</ul></div>
+</div>
+<div class="formula">
+Π = X(X<sup>T</sup>DX)<sup>−1</sup>X<sup>T</sup>D
+</div>
+<div class="bilingual">
+<div class="en">The Bellman error at state s is the <b>expectation of the TD error</b>: δ̄<sub>w</sub>(s) = E<sub>π</sub>[δ<sub>t</sub> | S<sub>t</sub>=s]. The TD fixed point w<sub>TD</sub> = A<sup>−1</sup>b always has <b>zero PBE</b> under linear approximation, but may not be stable off-policy.</div>
+<div class="cn">状态s处的Bellman误差是TD误差的<b>期望</b>：δ̄<sub>w</sub>(s)=E<sub>π</sub>[δ<sub>t</sub>|S<sub>t</sub>=s]。TD不动点w<sub>TD</sub>=A<sup>−1</sup>b在线性近似下始终有<b>零PBE</b>，但off-policy下可能不稳定。</div>
+</div>
+</div>
+
+<!-- 11.5 -->
+<div class="section" id="s5">
+<h3>11.5 Bellman误差的梯度下降 / Gradient Descent in BE</h3>
+<div class="bilingual">
+<div class="en">True SGD methods always go downhill and have excellent convergence. Only MC methods are true SGD among algorithms seen so far. Can we do SGD on BE or TDE?</div>
+<div class="cn">真正的SGD方法始终 downhill，收敛性优秀。目前见过的算法中只有MC是真正的SGD。能对BE或TDE做SGD吗？</div>
+</div>
+<div class="bilingual">
+<div class="en"><b>TDE minimization</b> leads to the <span class="key-term">naive residual-gradient algorithm</span>:<br>
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αρ<sub>t</sub>δ<sub>t</sub>[∇v̂(S<sub>t</sub>) − γ∇v̂(S<sub>t+1</sub>)]. This converges robustly but to <b>wrong values</b>! Example: A-split problem — true values (½,1,0) vs learned (½,¾,¼).</div>
+<div class="cn"><b>TDE最小化</b>导致<span class="key-term">朴素残差梯度算法</span>：<br>
+<b>w</b><sub>t+1</sub>=<b>w</b><sub>t</sub>+αρ<sub>t</sub>δ<sub>t</sub>[∇v̂(S<sub>t</sub>)−γ∇v̂(S<sub>t+1</sub>)]。鲁棒收敛但收敛到<b>错误值</b>！例：A-split问题——真值(½,1,0) vs 学到(½,¾,¼)。</div>
+</div>
+<div class="bilingual">
+<div class="en"><b>BE minimization</b> (residual-gradient algorithm): requires <b>two independent samples</b> of next state from the same state (double sampling). Works with deterministic environments or simulated environments (roll-back). But:
+<ul style="margin-top:8px;">
+<li>Empirically <b>much slower</b> than semi-gradient methods</li>
+<li>Converges to <b>wrong values</b> with genuine function approximation (A-presplit example)</li>
+<li>BE is <b>not learnable</b> from data (next section)</li>
+</ul></div>
+<div class="cn"><b>BE最小化</b>（残差梯度算法）：需要从同一状态出发的<b>两个独立下一状态样本</b>（双重采样）。适用于确定性环境或模拟环境（回滚）。但：
+<ul style="margin-top:8px;">
+<li>经验上比半梯度方法<b>慢得多</b></li>
+<li>真正的函数近似下收敛到<b>错误值</b>（A-presplit例子）</li>
+<li>BE从数据中<b>不可学习</b>（下一节）</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 11.6 -->
+<div class="section" id="s6">
+<h3>11.6 Bellman误差不可学习 / BE is Not Learnable</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Learnability</span>: can a quantity be determined from the observable data distribution (feature vectors, actions, rewards)? Many quantities in RL are well-defined from the MDP but <b>cannot be computed from observed data</b>.</div>
+<div class="cn"><span class="key-term">可学习性</span>：一个量能否从可观测数据分布（特征向量、动作、奖励）中确定？RL中许多量从MDP定义良好但<b>无法从观测数据中计算</b>。</div>
+</div>
+<div class="note-danger">
+<strong>🔴 关键结论：VE不可学习，但最优参数可学习：</strong>两个不同MDP可以产生相同数据分布但有不同的VE。然而，<b>最小化VE的参数w*在两个MDP中相同</b>。此外，RE（回报误差）= VE + 常数，所以w*可从RE学习。
+</div>
+<div class="note-danger">
+<strong>🔴 致命结论：BE不可学习且最优参数也不可学习：</strong>存在两个MDP产生相同数据分布，但有不同的BE<b>且有不同的最小化参数</b>。因此不可能从数据中追求BE作为学习目标。BE仅限于基于模型的场景。
+</div>
+<div class="bilingual">
+<div class="en">Summary of objectives:<br>
+<b>Learnable</b>: RE (and its optimal w*), TDE, PBE (and its optimal w*)<br>
+<b>Not learnable</b>: VE (but w* is learnable via RE), BE (and w* is also NOT learnable)</div>
+<div class="cn">目标总结：<br>
+<b>可学习</b>：RE（及其最优w*）、TDE、PBE（及其最优w*）<br>
+<b>不可学习</b>：VE（但w*可通过RE学习）、BE（且w*也不可学习）</div>
+</div>
+</div>
+
+<!-- 11.7 -->
+<div class="section" id="s7">
+<h3>11.7 Gradient-TD方法 / Gradient-TD Methods</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Gradient-TD methods</span> are SGD methods for minimizing the <b>PBE</b> — they have robust convergence even under off-policy training and nonlinear function approximation. The PBE gradient (linear case):</div>
+<div class="cn"><span class="key-term">Gradient-TD方法</span>是最小化<b>PBE</b>的SGD方法——即使在off-policy训练和非线性函数近似下也有鲁棒收敛。PBE梯度（线性情况）：</div>
+</div>
+<div class="formula">
+∇PBE(<b>w</b>) = 2 E[ρ<sub>t</sub>(γ<b>x</b><sub>t+1</sub>−<b>x</b><sub>t</sub>)<b>x</b><sub>t</sub><sup>T</sup>] E[<b>x</b><sub>t</sub><b>x</b><sub>t</sub><sup>T</sup>]<sup>−1</sup> E[ρ<sub>t</sub>δ<sub>t</sub><b>x</b><sub>t</sub>]
+</div>
+<div class="bilingual">
+<div class="en">Store a second learned vector <b>v</b> that approximates E[<b>x</b><sub>t</sub><b>x</b><sub>t</sub><sup>T</sup>]<sup>−1</sup>E[ρ<sub>t</sub>δ<sub>t</sub><b>x</b><sub>t</sub>], learned by LMS rule: <b>v</b><sub>t+1</sub> = <b>v</b><sub>t</sub> + βρ<sub>t</sub>(δ<sub>t</sub>−<b>v</b><sub>t</sub><sup>T</sup><b>x</b><sub>t</sub>)<b>x</b><sub>t</sub></div>
+<div class="cn">存储第二个学习向量<b>v</b>近似E[<b>x</b><sub>t</sub><b>x</b><sub>t</sub><sup>T</sup>]<sup>−1</sup>E[ρ<sub>t</sub>δ<sub>t</sub><b>x</b><sub>t</sub>]，由LMS规则学习：<b>v</b><sub>t+1</sub>=<b>v</b><sub>t</sub>+βρ<sub>t</sub>(δ<sub>t</sub>−<b>v</b><sub>t</sub><sup>T</sup><b>x</b><sub>t</sub>)<b>x</b><sub>t</sub></div>
+</div>
+<div class="bilingual">
+<div class="en"><b>GTD2</b>: <b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αρ<sub>t</sub>(<b>x</b><sub>t</sub> − γ<b>x</b><sub>t+1</sub>)<b>x</b><sub>t</sub><sup>T</sup><b>v</b><sub>t</sub><br>
+<b>TDC</b> (GTD(0)): <b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αρ<sub>t</sub>(δ<sub>t</sub><b>x</b><sub>t</sub> − γ<b>x</b><sub>t+1</sub><b>x</b><sub>t</sub><sup>T</sup><b>v</b><sub>t</sub>)</div>
+<div class="cn"><b>GTD2</b>：<b>w</b><sub>t+1</sub>=<b>w</b><sub>t</sub>+αρ<sub>t</sub>(<b>x</b><sub>t</sub>−γ<b>x</b><sub>t+1</sub>)<b>x</b><sub>t</sub><sup>T</sup><b>v</b><sub>t</sub><br>
+<b>TDC</b>（GTD(0)）：<b>w</b><sub>t+1</sub>=<b>w</b><sub>t</sub>+αρ<sub>t</sub>(δ<sub>t</sub><b>x</b><sub>t</sub>−γ<b>x</b><sub>t+1</sub><b>x</b><sub>t</sub><sup>T</sup><b>v</b><sub>t</sub>)</div>
+</div>
+<div class="bilingual">
+<div class="en">Both are <b>O(d)</b> per step (if x<sub>t</sub><sup>T</sup>v<sub>t</sub> computed first). They involve <b>two learning processes</b> (a <span class="key-term">cascade</span>): primary for <b>w</b>, secondary for <b>v</b>. Convergence proofs use <b>two-time-scale</b> analysis (β→0, α/β→0). Extensions: GQ (action values), GTD(λ), nonlinear, hybrid methods.</div>
+<div class="cn">两者都是每步<b>O(d)</b>（如果先计算x<sub>t</sub><sup>T</sup>v<sub>t</sub>）。它们涉及<b>两个学习过程</b>（<span class="key-term">级联</span>）：主要学习<b>w</b>，次要学习<b>v</b>。收敛证明使用<b>双时间尺度</b>分析（β→0，α/β→0）。扩展：GQ（动作价值）、GTD(λ)、非线性、混合方法。</div>
+</div>
+</div>
+
+<!-- 11.8 -->
+<div class="section" id="s8">
+<h3>11.8 Emphatic-TD方法 / Emphatic-TD Methods</h3>
+<div class="bilingual">
+<div class="en">Second major strategy: <b>reweight the states</b> to return the update distribution to the on-policy distribution. Linear semi-gradient TD is stable under on-policy distribution due to positive definiteness of matrix A. Emphatic-TD restores this match using <span class="key-term">interest</span> I<sub>t</sub> and <span class="key-term">emphasis</span> M<sub>t</sub>:</div>
+<div class="cn">第二大策略：<b>重新加权状态</b>以将更新分布恢复到on-policy分布。线性半梯度TD在on-policy分布下因矩阵A的正定性而稳定。Emphatic-TD使用<span class="key-term">interest</span> I<sub>t</sub>和<span class="key-term">emphasis</span> M<sub>t</sub>恢复这种匹配：</div>
+</div>
+<div class="pseudo">One-step Emphatic-TD (episodic)
+────────────────────────────────────────────
+δ<sub>t</sub> = R<sub>t+1</sub> + γv̂(S<sub>t+1</sub>, <b>w</b><sub>t</sub>) − v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>)
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αM<sub>t</sub>ρ<sub>t</sub>δ<sub>t</sub> ∇v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>)
+M<sub>t</sub> = γρ<sub>t−1</sub>M<sub>t−1</sub> + I<sub>t</sub>   (I<sub>t</sub> = interest, M<sub>t−1</sub> init to 0)</div>
+<div class="bilingual">
+<div class="en">On Baird's counterexample, Emphatic-TD <b>converges to the optimal solution</b> (VE→0) in expectation, with all weights converging. However, in practice, the <b>variance is very high</b>, making consistent results hard to obtain computationally.</div>
+<div class="cn">在Baird反例上，Emphatic-TD在期望意义下<b>收敛到最优解</b>（VE→0），所有权重收敛。然而实际中<b>方差非常高</b>，使计算实验难以获得一致结果。</div>
+</div>
+</div>
+
+<!-- 11.9 -->
+<div class="section" id="s9">
+<h3>11.9 减少方差 / Reducing Variance</h3>
+<div class="bilingual">
+<div class="en">Off-policy learning is <b>inherently higher variance</b> than on-policy. Importance sampling involves <b>products of ratios</b> — expected value is 1 but actual values can be extremely high or zero, causing occasional very large SGD steps. Strategies:
+<ul style="margin-top:8px;">
+<li>Weighted importance sampling (harder with function approximation)</li>
+<li>Tree backup algorithm (no importance sampling needed)</li>
+<li>Constrain target policy to be close to behavior policy ("recognizers")</li>
+<li>Polyak-Ruppert averaging, adaptive per-component step sizes</li>
+</ul></div>
+<div class="cn">Off-policy学习<b>固有地比方差更高</b>。重要性采样涉及<b>比率乘积</b>——期望值为1但实际值可能极高或为零，导致偶尔非常大的SGD步长。策略：
+<ul style="margin-top:8px;">
+<li>加权重要性采样（函数近似下更困难）</li>
+<li>树备份算法（不需要重要性采样）</li>
+<li>约束目标策略接近行为策略（"识别器"）</li>
+<li>Polyak-Ruppert平均、自适应逐分量步长</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 11.10 -->
+<div class="section" id="s10">
+<h3>11.10 小结 / Summary</h3>
+<div class="bilingual">
+<div class="en">Key takeaways:
+<ul style="margin-top:8px;">
+<li>Off-policy + function approximation is a <b>tempting but hard</b> challenge</li>
+<li>The <span class="key-term">deadly triad</span>: function approximation + bootstrapping + off-policy = potential divergence</li>
+<li><b>BE is not learnable</b> from data — rules out residual-gradient methods in model-free settings</li>
+<li><b>VE is not learnable</b>, but its optimal parameter w* IS learnable (via RE)</li>
+<li><span class="key-term">Gradient-TD</span> methods (GTD2, TDC): SGD on PBE, O(d), robust convergence</li>
+<li><span class="key-term">Emphatic-TD</span>: reweights updates to restore on-policy stability</li>
+<li>High <b>variance</b> remains a fundamental challenge for off-policy methods</li>
+<li>The whole area is <b>relatively new and unsettled</b> — best methods still unclear</li>
+</ul></div>
+<div class="cn">核心要点：
+<ul style="margin-top:8px;">
+<li>Off-policy+函数近似是<b>诱人但困难</b>的挑战</li>
+<li><span class="key-term">致命三要素</span>：函数近似+自举+off-policy=可能发散</li>
+<li><b>BE从数据中不可学习</b>——排除了无模型设置下的残差梯度方法</li>
+<li><b>VE不可学习</b>，但其最优参数w*可学习（通过RE）</li>
+<li><span class="key-term">Gradient-TD</span>方法（GTD2、TDC）：对PBE做SGD，O(d)，鲁棒收敛</li>
+<li><span class="key-term">Emphatic-TD</span>：重新加权更新以恢复on-policy稳定性</li>
+<li>高<b>方差</b>仍是off-policy方法的根本挑战</li>
+<li>整个领域<b>相对较新且 unsettled</b>——最佳方法仍不清楚</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 核心概念速查表 -->
+<div class="section">
+<h3>📋 核心概念速查表 / Key Concepts Quick Reference</h3>
+<table class="summary">
+<tr><th>英文术语</th><th>中文术语</th><th>含义</th></tr>
+<tr><td>Deadly Triad</td><td>致命三要素</td><td>函数近似+自举+off-policy=发散风险</td></tr>
+<tr><td>Baird's Counterexample</td><td>Baird反例</td><td>7状态MDP证明半梯度off-policy TD发散</td></tr>
+<tr><td>Bellman Error (BE)</td><td>Bellman误差</td><td>B<sub>π</sub>v<sub>w</sub>−v<sub>w</sub>，从数据中不可学习</td></tr>
+<tr><td>Projected Bellman Error (PBE)</td><td>投影Bellman误差</td><td>Π(B<sub>π</sub>v<sub>w</sub>−v<sub>w</sub>)，TD不动点处为零</td></tr>
+<tr><td>Residual-gradient Algorithm</td><td>残差梯度算法</td><td>BE的真正SGD，需要双重采样</td></tr>
+<tr><td>Gradient-TD (GTD2, TDC)</td><td>梯度TD</td><td>PBE的SGD方法，带辅助向量v</td></tr>
+<tr><td>Emphatic-TD</td><td>强调TD</td><td>用interest/emphasis重加权更新分布</td></tr>
+<tr><td>Learnability</td><td>可学习性</td><td>能否从可观测数据中确定某量</td></tr>
+<tr><td>Two-time-scale</td><td>双时间尺度</td><td>级联学习中主/次过程不同步长</td></tr>
+<tr><td>Cascade</td><td>级联</td><td>一个学习过程非对称依赖另一个</td></tr>
+</table>
+</div>
+
+</div>
+</body>
+</html>

@@ -80,6 +80,7 @@ OpenStack Bare Metal Management System. [https://github.com/openstack/ironic](ht
 - [XgoDuck RL — 代码实现、数学原理与训练过程分析](posts/xgoduck_rl_analysis.html)
 - [XGO Duck — 双核通信与控制循环分析](posts/architecture.html)
 - [CUDA 并行编程完全指南 — 交互式电子书](cuda-ebook/)
+- [RL: An Introduction 双语笔记](rl-book/RL_Book_Index.html)
 
 ### Social Media
 

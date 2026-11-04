@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 12: Eligibility Traces | 第十二章：资格迹</title>
+<style>
+:root { --accent: #4e342e; --accent-light: #efebe9; --highlight: #fff59d; --bg: #f5f7fa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #333; line-height: 1.8; }
+.hero { background: linear-gradient(135deg, #3e2723, #4e342e, #5d4037); color: white; padding: 60px 20px; text-align: center; }
+.hero h1 { font-size: 2.2em; margin-bottom: 10px; }
+.hero h2 { font-size: 1.5em; font-weight: 300; opacity: 0.9; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.toc { background: white; border-radius: 12px; padding: 30px; margin: 30px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.toc h3 { color: var(--accent); margin-bottom: 15px; }
+.toc ul { list-style: none; columns: 2; }
+.toc li { padding: 5px 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.section { background: white; border-radius: 12px; padding: 30px; margin: 25px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.section h3 { color: var(--accent); font-size: 1.5em; margin-bottom: 20px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }
+.bilingual { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0; }
+.en { border-left: 4px solid var(--accent); background: var(--accent-light); padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.cn { border-left: 4px solid #e74c3c; background: #fdf5f3; padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.key-term { background: var(--highlight); padding: 1px 6px; font-weight: 600; border-radius: 3px; }
+.formula { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0; text-align: center; font-family: 'Cambria Math', serif; font-size: 1.05em; overflow-x: auto; }
+.pseudo { background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.88em; line-height: 1.6; margin: 15px 0; overflow-x: auto; white-space: pre-wrap; }
+.note { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.note-warn { background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+table.summary { width: 100%; border-collapse: collapse; margin: 15px 0; }
+table.summary th { background: var(--accent); color: white; padding: 12px 15px; text-align: left; }
+table.summary td { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; }
+table.summary tr:nth-child(even) { background: #f8f9fa; }
+@media (max-width: 768px) { .bilingual { grid-template-columns: 1fr; } .toc ul { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>Chapter 12: Eligibility Traces</h1>
+<h2>第十二章：资格迹</h2>
+</div>
+<div class="container">
+
+<div class="toc">
+<h3>📑 目录 / Table of Contents</h3>
+<ul>
+<li><a href="#s1">12.1 λ-回报 / The λ-return</a></li>
+<li><a href="#s2">12.2 TD(λ)</a></li>
+<li><a href="#s3">12.3 n步截断λ-回报方法</a></li>
+<li><a href="#s4">12.4 重做更新：在线λ-回报算法</a></li>
+<li><a href="#s5">12.5 真正的在线TD(λ)</a></li>
+<li><a href="#s6">12.6 *蒙特卡罗学习中的Dutch迹</a></li>
+<li><a href="#s7">12.7 Sarsa(λ)</a></li>
+<li><a href="#s8">12.8 可变λ和γ</a></li>
+<li><a href="#s9">12.9 *带控制变量的Off-policy迹</a></li>
+<li><a href="#s10">12.10 Watkins的Q(λ)到Tree-Backup(λ)</a></li>
+<li><a href="#s11">12.11 稳定的Off-policy迹方法</a></li>
+<li><a href="#s12">12.12 实现问题 / Implementation Issues</a></li>
+<li><a href="#s13">12.13 结论 / Conclusions</a></li>
+</ul>
+</div>
+
+<!-- 引言 -->
+<div class="section">
+<h3>引言 / Introduction</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Eligibility traces</span> are one of the basic mechanisms of reinforcement learning. They unify and generalize TD and Monte Carlo methods, producing a family of methods spanning from Monte Carlo (λ=1) to one-step TD (λ=0). The mechanism is a <span class="key-term">short-term memory vector</span> z<sub>t</sub> ∈ ℝ<sup>d</sup> that parallels the long-term weight vector w<sub>t</sub>.</div>
+<div class="cn"><span class="key-term">资格迹</span>是强化学习的基本机制之一。它统一并泛化了TD和蒙特卡罗方法，产生从蒙特卡罗(λ=1)到单步TD(λ=0)的方法族。其机制是一个<span class="key-term">短期记忆向量</span>z<sub>t</sub>∈ℝ<sup>d</sup>，与长期权重向量w<sub>t</sub>并行。</div>
+</div>
+<div class="bilingual">
+<div class="en">The primary computational advantage: only a <b>single trace vector</b> is required rather than a store of the last n feature vectors. Learning occurs <b>continually and uniformly</b> in time rather than being delayed. The <span class="key-term">forward view</span> looks ahead to future rewards; the <span class="key-term">backward view</span> uses eligibility traces to assign credit to past states.</div>
+<div class="cn">主要计算优势：只需要<b>单个迹向量</b>而非存储最近n个特征向量。学习在时间上<b>持续均匀</b>进行而非延迟。
+<span class="key-term">前向视图</span>展望未来奖励；<span class="key-term">后向视图</span>使用资格迹将功劳分配给过去的状态。</div>
+</div>
+</div>
+
+<!-- 12.1 -->
+<div class="section" id="s1">
+<h3>12.1 λ-回报 / The λ-return</h3>
+<div class="bilingual">
+<div class="en">A valid update can be done toward any <b>average of n-step returns</b> for different n's, as long as weights are positive and sum to 1. Such an update is called a <span class="key-term">compound update</span>. The TD(λ) algorithm averages all n-step updates, each weighted proportionally to λ<sup>n−1</sup>, normalized by (1−λ).</div>
+<div class="cn">只要权重为正且总和为1，就可以对不同n的<b>n步回报进行平均</b>来执行有效更新。这种更新称为<span class="key-term">复合更新</span>。TD(λ)算法对所有n步更新进行平均，每个更新按λ<sup>n−1</sup>加权，并用(1−λ)归一化。</div>
+</div>
+<div class="formula">
+G<sub>t</sub><sup>λ</sup> = (1−λ) Σ<sub>n=1</sub><sup>∞</sup> λ<sup>n−1</sup> G<sub>t:t+n</sub>
+</div>
+<div class="bilingual">
+<div class="en">When λ=1, the λ-return reduces to the conventional Monte Carlo return G<sub>t</sub>. When λ=0, it reduces to the one-step return G<sub>t:t+1</sub>. The <b>offline λ-return algorithm</b> makes updates at the end of the episode using this target:</div>
+<div class="cn">当λ=1时，λ-回报退化为传统蒙特卡罗回报G<sub>t</sub>。当λ=0时，退化为单步回报G<sub>t:t+1</sub>。<b>离线λ-回报算法</b>在回合结束时使用此目标进行更新：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + α [G<sub>t</sub><sup>λ</sup> − v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>)] ∇v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>)
+</div>
+</div>
+
+<!-- 12.2 -->
+<div class="section" id="s2">
+<h3>12.2 TD(λ)</h3>
+<div class="bilingual">
+<div class="en">TD(λ) improves over the offline λ-return algorithm in three ways: (1) updates on every step, (2) computations equally distributed in time, (3) applicable to continuing problems. The <span class="key-term">eligibility trace</span> is initialized to zero, incremented by the value gradient, then fades:</div>
+<div class="cn">TD(λ)在三个方面改进离线λ-回报算法：(1)每步更新，(2)计算在时间上均匀分布，(3)适用于持续性任务。<span class="key-term">资格迹</span>初始化为零，按价值梯度递增，然后衰减：</div>
+</div>
+<div class="formula">
+<b>z</b><sub>−1</sub> = <b>0</b><br>
+<b>z</b><sub>t</sub> = γλ<b>z</b><sub>t−1</sub> + ∇v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>)
+</div>
+<div class="bilingual">
+<div class="en">The TD error: δ<sub>t</sub> = R<sub>t+1</sub> + γv̂(S<sub>t+1</sub>, <b>w</b><sub>t</sub>) − v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>). The weight update:</div>
+<div class="cn">TD误差：δ<sub>t</sub>=R<sub>t+1</sub>+γv̂(S<sub>t+1</sub>,<b>w</b><sub>t</sub>)−v̂(S<sub>t</sub>,<b>w</b><sub>t</sub>)。权重更新：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αδ<sub>t</sub><b>z</b><sub>t</sub>
+</div>
+
+<div class="pseudo">Semi-gradient TD(λ) for estimating v̂ ≈ v<sub>π</sub>
+────────────────────────────────────────────
+Input: policy π, differentiable v̂: S⁺ × ℝ<sup>d</sup> → ℝ
+Parameters: step size α > 0, trace decay rate λ ∈ [0,1]
+Initialize w arbitrarily
+
+Loop for each episode:
+    Initialize S
+    z ← 0 (d-dimensional vector)
+    Loop for each step:
+        Choose A ~ π(·|S)
+        Take action A, observe R, S'
+        z ← γλz + ∇v̂(S, w)
+        δ ← R + γv̂(S', w) − v̂(S, w)
+        w ← w + αδz
+        S ← S'
+    until S' is terminal</div>
+
+<div class="bilingual">
+<div class="en">If λ=0, TD(λ) reduces to one-step TD(0). For λ=1 (TD(1)), traces don't decay → Monte Carlo behavior for undiscounted episodic tasks. <b>TD(1) can be performed incrementally and online</b>, unlike classical MC methods. Linear TD(λ) converges on-policy with VE bound:</div>
+<div class="cn">如果λ=0，TD(λ)退化为单步TD(0)。当λ=1(TD(1))时，迹不衰减→无折扣回合任务的蒙特卡罗行为。<b>TD(1)可以增量在线执行</b>，不同于经典MC方法。线性TD(λ)在on-policy下收敛，VE界：</div>
+</div>
+<div class="formula">VE(<b>w</b><sub>∞</sub>) ≤ (1−γλ)/(1−γ) · min<sub>w</sub> VE(<b>w</b>)</div>
+</div>
+
+<!-- 12.3 -->
+<div class="section" id="s3">
+<h3>12.3 n步截断λ-回报方法 / n-step Truncated λ-return Methods</h3>
+<div class="bilingual">
+<div class="en">The offline λ-return is not known until episode end. We can <b>truncate</b> after n steps, replacing missing rewards with estimated values:</div>
+<div class="cn">离线λ-回报直到回合结束才知道。可以在n步后<b>截断</b>，用估计值替代缺失奖励：</div>
+</div>
+<div class="formula">
+G<sub>t:h</sub><sup>λ</sup> = (1−λ) Σ<sub>n=1</sub><sup>h−t−1</sup> λ<sup>n−1</sup> G<sub>t:t+n</sub> + λ<sup>h−t−1</sup> G<sub>t:h</sub>
+</div>
+<div class="bilingual">
+<div class="en">This gives rise to <span class="key-term">Truncated TD(λ)</span> (TTD(λ)). The k-step λ-return can be written as:</div>
+<div class="cn">这产生了<span class="key-term">截断TD(λ)</span>（TTD(λ)）。k步λ-回报可写为：</div>
+</div>
+<div class="formula">
+G<sub>t:t+k</sub><sup>λ</sup> = v̂(S<sub>t</sub>, <b>w</b><sub>t−1</sub>) + Σ<sub>i=t</sub><sup>t+k−1</sup> (γλ)<sup>i−t</sup> δ'<sub>i</sub>
+</div>
+<div class="bilingual">
+<div class="en">where δ'<sub>t</sub> = R<sub>t+1</sub> + γv̂(S<sub>t+1</sub>, <b>w</b><sub>t</sub>) − v̂(S<sub>t</sub>, <b>w</b><sub>t−1</sub>). Efficient implementation: per-step computation does not scale with n.</div>
+<div class="cn">其中δ'<sub>t</sub>=R<sub>t+1</sub>+γv̂(S<sub>t+1</sub>,<b>w</b><sub>t</sub>)−v̂(S<sub>t</sub>,<b>w</b><sub>t−1</sub>)。高效实现：逐步计算不随n缩放。</div>
+</div>
+</div>
+
+<!-- 12.4 -->
+<div class="section" id="s4">
+<h3>12.4 重做更新：在线λ-回报算法 / Online λ-return Algorithm</h3>
+<div class="bilingual">
+<div class="en">Idea: on each time step, <b>go back and redo all updates</b> since the beginning of the episode with the new data. Always use the latest horizon for the truncated λ-return target. Multiple passes over the episode, each at a different horizon h:</div>
+<div class="cn">思想：在每个时间步，<b>回溯并重做自回合开始以来的所有更新</b>，使用新数据。始终使用最新截断λ-回报目标。对回合进行多次遍历，每次在不同水平h：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>t+1</sub><sup>h</sup> = <b>w</b><sub>t</sub><sup>h</sup> + α [G<sub>t:h</sub><sup>λ</sup> − v̂(S<sub>t</sub>, <b>w</b><sub>t</sub><sup>h</sup>)] ∇v̂(S<sub>t</sub>, <b>w</b><sub>t</sub><sup>h</sup>)
+</div>
+<div class="bilingual">
+<div class="en">Fully online but <b>computationally complex</b> — passes over the episode on every step. Performs subtly better than the offline algorithm at the end of the episode because bootstrapping uses a more informed weight vector.</div>
+<div class="cn">完全在线但<b>计算复杂</b>——每步都遍历回合。在回合结束时比离线算法表现略好，因为自举使用了更有信息的权重向量。</div>
+</div>
+</div>
+
+<!-- 12.5 -->
+<div class="section" id="s5">
+<h3>12.5 真正的在线TD(λ) / True Online TD(λ)</h3>
+<div class="bilingual">
+<div class="en">The online λ-return algorithm is currently the <b>best performing</b> TD algorithm. For linear function approximation, there is an <b>exact efficient implementation</b> called <span class="key-term">True Online TD(λ)</span>:</div>
+<div class="cn">在线λ-回报算法是目前<b>表现最好</b>的TD算法。对于线性函数近似，有一个<b>精确高效实现</b>称为<span class="key-term">真正的在线TD(λ)</span>：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αδ<sub>t</sub><b>z</b><sub>t</sub> + α(<b>w</b><sub>t</sub><sup>T</sup><b>x</b><sub>t</sub> − <b>w</b><sub>t−1</sub><sup>T</sup><b>x</b><sub>t</sub>)(<b>z</b><sub>t</sub> − <b>x</b><sub>t</sub>)
+</div>
+<div class="formula">
+<b>z</b><sub>t</sub> = γλ<b>z</b><sub>t−1</sub> + (1 − αλ<b>z</b><sub>t−1</sub><sup>T</sup><b>x</b><sub>t</sub>)<b>x</b><sub>t</sub>
+</div>
+
+<div class="pseudo">True Online TD(λ) for estimating w<sup>T</sup>x ≈ v<sub>π</sub>
+────────────────────────────────────────────
+Input: policy π, feature function x: S⁺ → ℝ<sup>d</sup>
+Parameters: step size α > 0, trace decay rate λ ∈ [0,1]
+Initialize w ∈ ℝ<sup>d</sup>
+
+Loop for each episode:
+    Initialize state, get feature vector x
+    z ← 0, V<sub>old</sub> ← 0
+    Loop for each step:
+        Choose A ~ π, take A, observe R, x'
+        V ← w<sup>T</sup>x, V' ← w<sup>T</sup>x'
+        δ ← R + γV' − V
+        z ← γλz + (1 − αλz<sup>T</sup>x)x
+        w ← w + α(δ + V − V<sub>old</sub>)z − α(V − V<sub>old</sub>)x
+        V<sub>old</sub> ← V', x ← x'
+    until x' = 0 (terminal)</div>
+
+<div class="bilingual">
+<div class="en">The eligibility trace (12.11) is called a <span class="key-term">dutch trace</span>. It produces <b>exactly the same</b> weight vector sequence as the online λ-return algorithm with O(d) per-step complexity (50% more than TD(λ)). Earlier <span class="key-term">replacing traces</span> are crude approximations to dutch traces.</div>
+<div class="cn">资格迹(12.11)称为<span class="key-term">dutch迹</span>。它产生与在线λ-回报算法<b>完全相同</b>的权重向量序列，逐步复杂度O(d)（比TD(λ)多50%）。早期的<span class="key-term">替换迹</span>是dutch迹的粗略近似。</div>
+</div>
+<div class="note">
+<strong>💡 三种迹类型：</strong>
+<b>累积迹</b>（TD(λ)使用）、<b>Dutch迹</b>（真正的在线TD(λ)使用，理论基础最好）、<b>替换迹</b>（仅适用于表格/二值特征，已被dutch迹取代）。
+</div>
+</div>
+
+<!-- 12.6 -->
+<div class="section" id="s6">
+<h3>12.6 *蒙特卡罗学习中的Dutch迹 / Dutch Traces in MC Learning</h3>
+<div class="bilingual">
+<div class="en">Eligibility traces arise even in <b>Monte Carlo learning</b> — they have nothing specific to do with TD. The linear MC algorithm (LMS rule) makes updates only at episode end. By algebraic manipulation, we can derive an <b>equivalent incremental algorithm</b> using dutch traces with O(d) per-step complexity:</div>
+<div class="cn">资格迹甚至出现在<b>蒙特卡罗学习</b>中——与TD无特定关系。线性MC算法（LMS规则）仅在回合结束时更新。通过代数推导，可以得到使用dutch迹的<b>等价增量算法</b>，逐步复杂度O(d)：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>T</sub> = <b>a</b><sub>T−1</sub> + αG<b>z</b><sub>T−1</sub>
+</div>
+<div class="bilingual">
+<div class="en">where <b>a</b><sub>t</sub> and <b>z</b><sub>t</sub> are auxiliary vectors updated incrementally. The trace <b>z</b><sub>t</sub> is exactly the dutch trace with γλ=1. This shows eligibility traces are <b>more fundamental</b> than TD — they arise whenever one tries to learn long-term predictions efficiently.</div>
+<div class="cn">其中<b>a</b><sub>t</sub>和<b>z</b><sub>t</sub>是增量更新的辅助向量。迹<b>z</b><sub>t</sub>恰好是γλ=1时的dutch迹。这表明资格迹比TD<b>更基本</b>——只要试图高效学习长期预测就会出现。</div>
+</div>
+</div>
+
+<!-- 12.7 -->
+<div class="section" id="s7">
+<h3>12.7 Sarsa(λ)</h3>
+<div class="bilingual">
+<div class="en">Extension to action values uses the action-value form of n-step returns. <span class="key-term">Sarsa(λ)</span> has the same update rule as TD(λ): <b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + αδ<sub>t</sub><b>z</b><sub>t</sub>, but with action-value TD error and eligibility trace:</div>
+<div class="cn">向动作价值的扩展使用n步回报的动作价值形式。<span class="key-term">Sarsa(λ)</span>具有与TD(λ)相同的更新规则：<b>w</b><sub>t+1</sub>=<b>w</b><sub>t</sub>+αδ<sub>t</sub><b>z</b><sub>t</sub>，但使用动作价值TD误差和资格迹：</div>
+</div>
+<div class="formula">
+δ<sub>t</sub> = R<sub>t+1</sub> + γq̂(S<sub>t+1</sub>, A<sub>t+1</sub>, <b>w</b><sub>t</sub>) − q̂(S<sub>t</sub>, A<sub>t</sub>, <b>w</b><sub>t</sub>)<br>
+<b>z</b><sub>t</sub> = γλ<b>z</b><sub>t−1</sub> + ∇q̂(S<sub>t</sub>, A<sub>t</sub>, <b>w</b><sub>t</sub>)
+</div>
+
+<div class="pseudo">Sarsa(λ) with binary features and linear function approximation
+────────────────────────────────────────────
+Input: feature function F(s,a), policy π
+Parameters: α > 0, λ ∈ [0,1]
+Initialize w, z ∈ ℝ<sup>d</sup>
+
+Loop for each episode:
+    Initialize S, choose A ~ π(·|S) or ε-greedy
+    z ← 0
+    Loop for each step:
+        Take A, observe R, S'
+        δ ← R
+        For i in F(S, A): δ ← δ − w<sub>i</sub>; z<sub>i</sub> ← z<sub>i</sub> + 1 (or 1 for replacing)
+        If S' terminal: w ← w + αδz → next episode
+        Choose A' ~ π(·|S') or ε-greedy
+        For i in F(S', A'): δ ← δ + γw<sub>i</sub>
+        w ← w + αδz
+        z ← γλz
+        S ← S', A ← A'</div>
+
+<div class="bilingual">
+<div class="en"><b>Example 12.1: Traces in Gridworld.</b> One-step methods increment only the last action value; n-step methods equally increment the last n actions; <b>eligibility trace methods update all action values</b> with fading credit. The fading strategy is often the best.</div>
+<div class="cn"><b>例12.1：Gridworld中的迹。</b>单步方法只增加最后一个动作价值；n步方法均匀增加最后n个动作；<b>资格迹方法以衰减功劳更新所有动作价值</b>。衰减策略通常最好。</div>
+</div>
+<div class="bilingual">
+<div class="en"><b>True Online Sarsa(λ)</b> extends True Online TD(λ) to action values using state-action features x<sub>t</sub>=x(S<sub>t</sub>,A<sub>t</sub>). It outperforms regular Sarsa(λ) with both accumulating and replacing traces on Mountain Car.</div>
+<div class="cn"><b>真正的在线Sarsa(λ)</b>使用状态-动作特征x<sub>t</sub>=x(S<sub>t</sub>,A<sub>t</sub>)将真正的在线TD(λ)扩展到动作价值。在Mountain Car上优于使用累积迹和替换迹的常规Sarsa(λ)。</div>
+</div>
+</div>
+
+<!-- 12.8 -->
+<div class="section" id="s8">
+<h3>12.8 可变λ和γ / Variable λ and γ</h3>
+<div class="bilingual">
+<div class="en">Generalize bootstrapping and discounting to <b>state-action dependent functions</b>: λ<sub>t</sub>=λ(S<sub>t</sub>,A<sub>t</sub>) and γ<sub>t</sub>=γ(S<sub>t</sub>). The <span class="key-term">termination function</span> γ(s) is particularly significant — it changes the return itself:</div>
+<div class="cn">将自举和折扣泛化为<b>状态-动作相关函数</b>：λ<sub>t</sub>=λ(S<sub>t</sub>,A<sub>t</sub>)和γ<sub>t</sub>=γ(S<sub>t</sub>)。<span class="key-term">终止函数</span>γ(s)特别重要——它改变了回报本身：</div>
+</div>
+<div class="formula">
+G<sub>t</sub> = R<sub>t+1</sub> + γ<sub>t+1</sub>R<sub>t+2</sub> + γ<sub>t+1</sub>γ<sub>t+2</sub>R<sub>t+3</sub> + ···
+</div>
+<div class="bilingual">
+<div class="en">A terminal state becomes a state where γ(s)=0, transitioning to the start distribution. This unifies episodic and discounted-continuing cases. The state-based λ-return becomes recursive:</div>
+<div class="cn">终止状态变为γ(s)=0的状态，转移到起始分布。这统一了回合制和折扣持续性情况。基于状态的λ-回报变为递归：</div>
+</div>
+<div class="formula">
+G<sub>t</sub><sup>λs</sup> = R<sub>t+1</sub> + γ<sub>t+1</sub>[(1−λ<sub>t+1</sub>)v̂(S<sub>t+1</sub>,<b>w</b><sub>t</sub>) + λ<sub>t+1</sub>G<sub>t+1</sub><sup>λs</sup>]
+</div>
+<div class="bilingual">
+<div class="en">The action-based λ-return comes in <b>Sarsa form</b> or <b>Expected Sarsa form</b> using V̄<sub>t</sub>(s) = Σ<sub>a</sub> π(a|s)q̂(s,a,<b>w</b><sub>t</sub>).</div>
+<div class="cn">基于动作的λ-回报有<b>Sarsa形式</b>或<b>Expected Sarsa形式</b>，使用V̄<sub>t</sub>(s)=Σ<sub>a</sub>π(a|s)q̂(s,a,<b>w</b><sub>t</sub>)。</div>
+</div>
+</div>
+
+<!-- 12.9 -->
+<div class="section" id="s9">
+<h3>12.9 *带控制变量的Off-policy迹 / Off-policy Traces with Control Variates</h3>
+<div class="bilingual">
+<div class="en">Incorporate importance sampling into the λ-return. The final state-based λ-return generalizes to off-policy:</div>
+<div class="cn">将重要性采样纳入λ-回报。最终的基于状态的λ-回报泛化到off-policy：</div>
+</div>
+<div class="formula">
+G<sub>t</sub><sup>λs</sup> = ρ<sub>t</sub>[R<sub>t+1</sub> + γ<sub>t+1</sub>((1−λ<sub>t+1</sub>)v̂<sub>t+1</sub> + λ<sub>t+1</sub>G<sub>t+1</sub><sup>λs</sup>)] + (1−ρ<sub>t</sub>)v̂<sub>t</sub>
+</div>
+<div class="bilingual">
+<div class="en">The approximate sum-of-TD-errors form leads to the <b>general accumulating trace update</b> for state values:</div>
+<div class="cn">TD误差之和的近似形式导致状态价值的<b>通用累积迹更新</b>：</div>
+</div>
+<div class="formula">
+<b>z</b><sub>t</sub> = ρ<sub>t</sub>(γ<sub>t</sub>λ<sub>t</sub><b>z</b><sub>t−1</sub> + ∇v̂(S<sub>t</sub>, <b>w</b><sub>t</sub>))
+</div>
+<div class="bilingual">
+<div class="en">For action values (Expected Sarsa form), the eligibility trace is:</div>
+<div class="cn">对于动作价值（Expected Sarsa形式），资格迹为：</div>
+</div>
+<div class="formula">
+<b>z</b><sub>t</sub> = γ<sub>t</sub>λ<sub>t</sub>ρ<sub>t</sub><b>z</b><sub>t−1</sub> + ∇q̂(S<sub>t</sub>, A<sub>t</sub>, <b>w</b><sub>t</sub>)
+</div>
+<div class="note-warn">
+<strong>⚠️ 注意：</strong>如果λ<1，所有这些off-policy算法都涉及自举，<b>致命三要素</b>适用（第11.3节），意味着它们仅在表格情况和状态聚合下保证稳定。
+</div>
+</div>
+
+<!-- 12.10 -->
+<div class="section" id="s10">
+<h3>12.10 Watkins的Q(λ)到Tree-Backup(λ)</h3>
+<div class="bilingual">
+<div class="en"><b>Watkins's Q(λ)</b>: decays traces as long as greedy actions are taken, then <b>cuts traces to zero</b> after the first non-greedy action. <b>Tree-Backup(λ)</b> (TB(λ)): the true successor to Q-learning, retaining the <b>absence of importance sampling</b>:</div>
+<div class="cn"><b>Watkins的Q(λ)</b>：只要采取贪婪动作就衰减迹，在第一个非贪婪动作后<b>将迹截为零</b>。<b>Tree-Backup(λ)</b>(TB(λ))：Q-learning的真正继承者，保持<b>不使用重要性采样</b>：</div>
+</div>
+<div class="formula">
+G<sub>t</sub><sup>λa</sup> = R<sub>t+1</sub> + γ<sub>t+1</sub>[V̄<sub>t</sub>(S<sub>t+1</sub>) + λ<sub>t+1</sub>π(A<sub>t+1</sub>|S<sub>t+1</sub>)(G<sub>t+1</sub><sup>λa</sup> − q̂(S<sub>t+1</sub>,A<sub>t+1</sub>,<b>w</b><sub>t</sub>))]
+</div>
+<div class="bilingual">
+<div class="en">The TB(λ) eligibility trace uses target-policy probabilities:</div>
+<div class="cn">TB(λ)资格迹使用目标策略概率：</div>
+</div>
+<div class="formula">
+<b>z</b><sub>t</sub> = γ<sub>t</sub>λ<sub>t</sub>π(A<sub>t</sub>|S<sub>t</sub>)<b>z</b><sub>t−1</sub> + ∇q̂(S<sub>t</sub>, A<sub>t</sub>, <b>w</b><sub>t</sub>)
+</div>
+</div>
+
+<!-- 12.11 -->
+<div class="section" id="s11">
+<h3>12.11 稳定的Off-policy迹方法 / Stable Off-policy Methods with Traces</h3>
+<div class="bilingual">
+<div class="en">Four key algorithms achieve stability guarantees under off-policy training (all assume linear function approximation):</div>
+<div class="cn">四个关键算法在off-policy训练下实现稳定性保证（均假设线性函数近似）：</div>
+</div>
+
+<table class="summary">
+<tr><th>算法</th><th>类型</th><th>关键特点</th></tr>
+<tr><td><b>GTD(λ)</b></td><td>状态价值 Gradient-TD</td><td>TDC的资格迹版本；需要辅助向量v和第二长β</td></tr>
+<tr><td><b>GQ(λ)</b></td><td>动作价值 Gradient-TD</td><td>用于off-policy控制；使用平均特征向量x̄<sub>t</sub></td></tr>
+<tr><td><b>HTD(λ)</b></td><td>混合状态价值</td><td>GTD(λ)和TD(λ)的混合；当b=π时退化为TD(λ)</td></tr>
+<tr><td><b>Emphatic TD(λ)</b></td><td>强调TD</td><td>保留强off-policy收敛保证；使用followon迹F<sub>t</sub>和emphasis M<sub>t</sub></td></tr>
+</table>
+
+<div class="bilingual">
+<div class="en"><b>HTD(λ)</b> is appealing because it is a <b>strict generalization</b> of TD(λ): if behavior=target policy, HTD(λ) becomes TD(λ) (unlike GTD(λ)). <b>Emphatic TD(λ)</b> uses emphasis M<sub>t</sub>=γ<sub>t</sub>I<sub>t</sub>+(1−λ<sub>t</sub>)F<sub>t</sub> and followon trace F<sub>t</sub>=ρ<sub>t−1</sub>γ<sub>t</sub>F<sub>t−1</sub>+I<sub>t</sub>.</div>
+<div class="cn"><b>HTD(λ)</b>有吸引力因为它是TD(λ)的<b>严格泛化</b>：如果行为=目标策略，HTD(λ)变为TD(λ)（GTD(λ)不是）。<b>Emphatic TD(λ)</b>使用emphasis M<sub>t</sub>=γ<sub>t</sub>I<sub>t</sub>+(1−λ<sub>t</sub>)F<sub>t</sub>和followon迹F<sub>t</sub>=ρ<sub>t−1</sub>γ<sub>t</sub>F<sub>t−1</sub>+I<sub>t</sub>。</div>
+</div>
+</div>
+
+<!-- 12.12 -->
+<div class="section" id="s12">
+<h3>12.12 实现问题 / Implementation Issues</h3>
+<div class="bilingual">
+<div class="en">For tabular methods, a naive implementation seems complex (update all states every step). But for typical γ and λ, almost all traces are <b>near zero</b> — only recently visited states have significant traces. In practice, only update the few significant traces → expense is just a few times that of one-step methods.</div>
+<div class="cn">对于表格方法，朴素实现看似复杂（每步更新所有状态）。但对于典型的γ和λ，几乎所有迹都<b>接近零</b>——只有最近访问的状态有显著迹。实践中只更新少数显著迹→开销仅为单步方法的几倍。</div>
+</div>
+<div class="bilingual">
+<div class="en">With function approximation (e.g., ANNs), eligibility traces generally cause only a <b>doubling</b> of memory and computation. The tabular case is the <b>worst case</b> for trace complexity.</div>
+<div class="cn">使用函数近似（如ANN），资格迹通常只导致内存和计算<b>翻倍</b>。表格情况是迹复杂度的<b>最坏情况</b>。</div>
+</div>
+</div>
+
+<!-- 12.13 -->
+<div class="section" id="s13">
+<h3>12.13 结论 / Conclusions</h3>
+<div class="bilingual">
+<div class="en">Eligibility traces + TD errors provide an <b>efficient, incremental way</b> of shifting between MC and TD methods. Key takeaways:</div>
+<div class="cn">资格迹+TD误差提供了在MC和TD方法之间切换的<b>高效增量方式</b>。关键要点：</div>
+</div>
+<div class="bilingual">
+<div class="en"><ul>
+<li><b>Intermediate λ</b> typically performs best — brings us toward MC but not all the way</li>
+<li><b>True online methods</b> exactly reproduce expensive ideal methods with O(d) complexity</li>
+<li>Eligibility traces are the <b>first line of defense</b> against long-delayed rewards and non-Markov tasks</li>
+<li>Use traces when <b>data is scarce</b> (online); skip when data is cheap (offline simulation)</li>
+<li>The elegant theory connects forward views ↔ backward views via trace equivalences</li>
+</ul></div>
+<div class="cn"><ul>
+<li><b>中间λ</b>通常表现最好——趋向MC但不到达</li>
+<li><b>真正的在线方法</b>以O(d)复杂度精确重现昂贵的理想方法</li>
+<li>资格迹是对抗<b>长延迟奖励和非Markov任务</b>的第一道防线</li>
+<li><b>数据稀缺</b>时使用迹（在线）；数据廉价时跳过（离线仿真）</li>
+<li>优雅的理论通过迹等价连接前向视图↔后向视图</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 核心概念速查 -->
+<div class="section">
+<h3>📋 核心概念速查 / Key Concepts Summary</h3>
+<table class="summary">
+<tr><th>概念 / Concept</th><th>定义 / Definition</th></tr>
+<tr><td><b>资格迹 Eligibility Trace</b></td><td>短期记忆向量z<sub>t</sub>，跟踪哪些权重分量对最近状态估值有贡献</td></tr>
+<tr><td><b>λ-回报</b></td><td>所有n步回报的几何加权平均：G<sup>λ</sup>=(1−λ)Σλ<sup>n−1</sup>G<sub>t:t+n</sub></td></tr>
+<tr><td><b>前向视图 Forward View</b></td><td>从当前状态展望未来奖励来确定更新目标</td></tr>
+<tr><td><b>后向视图 Backward View</b></td><td>用当前TD误差配合资格迹回溯更新过去状态</td></tr>
+<tr><td><b>Dutch迹</b></td><td>z<sub>t</sub>=γλz<sub>t−1</sub>+(1−αλz<sub>t−1</sub><sup>T</sup>x<sub>t</sub>)x<sub>t</sub>，用于真正的在线TD(λ)</td></tr>
+<tr><td><b>累积迹 Accumulating</b></td><td>z<sub>t</sub>=γλz<sub>t−1</sub>+∇v̂，经典TD(λ)使用</td></tr>
+<tr><td><b>替换迹 Replacing</b></td><td>特征为1时重置为1，否则衰减；已被dutch迹取代</td></tr>
+<tr><td><b>复合更新 Compound Update</b></td><td>多个n步回报的加权平均</td></tr>
+<tr><td><b>终止函数 γ(s)</b></td><td>状态相关的折扣，统一回合制和持续性设定</td></tr>
+<tr><td><b>致命三要素与迹</b></td><td>λ<1时off-policy迹方法仍涉及自举，需要稳定化技术</td></tr>
+</table>
+</div>
+
+</div>
+</body>
+</html>

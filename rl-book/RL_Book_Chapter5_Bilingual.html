@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 5: Monte Carlo Methods | 第五章：蒙特卡洛方法</title>
+<style>
+:root { --accent: #1565c0; --accent-light: #e3f2fd; --highlight: #fff59d; --bg: #f5f7fa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #333; line-height: 1.8; }
+.hero { background: linear-gradient(135deg, #0d47a1, #1565c0, #1e88e5); color: white; padding: 60px 20px; text-align: center; }
+.hero h1 { font-size: 2.4em; margin-bottom: 10px; }
+.hero h2 { font-size: 1.6em; font-weight: 300; opacity: 0.9; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.toc { background: white; border-radius: 12px; padding: 30px; margin: 30px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.toc h3 { color: var(--accent); margin-bottom: 15px; font-size: 1.3em; }
+.toc ul { list-style: none; columns: 2; }
+.toc li { padding: 5px 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.section { background: white; border-radius: 12px; padding: 30px; margin: 25px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.section h3 { color: var(--accent); font-size: 1.5em; margin-bottom: 20px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }
+.bilingual { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0; }
+.en { border-left: 4px solid var(--accent); background: var(--accent-light); padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.cn { border-left: 4px solid #e74c3c; background: #fdf5f3; padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.key-term { background: var(--highlight); padding: 1px 6px; font-weight: 600; border-radius: 3px; }
+.formula { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0; text-align: center; font-family: 'Cambria Math', 'Times New Roman', serif; font-size: 1.1em; overflow-x: auto; }
+.pseudo { background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 8px; font-family: 'Fira Code', 'Consolas', monospace; font-size: 0.9em; line-height: 1.6; margin: 15px 0; overflow-x: auto; white-space: pre-wrap; }
+.note { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.note-warn { background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+table.summary { width: 100%; border-collapse: collapse; margin: 15px 0; }
+table.summary th { background: var(--accent); color: white; padding: 12px 15px; text-align: left; }
+table.summary td { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; }
+table.summary tr:nth-child(even) { background: #f8f9fa; }
+@media (max-width: 768px) { .bilingual { grid-template-columns: 1fr; } .toc ul { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>Chapter 5: Monte Carlo Methods</h1>
+<h2>第五章：蒙特卡洛方法</h2>
+</div>
+<div class="container">
+
+<div class="toc">
+<h3>📑 目录 / Table of Contents</h3>
+<ul>
+<li><a href="#s1">5.1 蒙特卡洛预测 / Monte Carlo Prediction</a></li>
+<li><a href="#s2">5.2 动作价值估计 / Estimation of Action Values</a></li>
+<li><a href="#s3">5.3 蒙特卡洛控制 / Monte Carlo Control</a></li>
+<li><a href="#s4">5.4 无探索起点的MC控制 / Control without Exploring Starts</a></li>
+<li><a href="#s5">5.5 Off-policy重要性采样 / Importance Sampling</a></li>
+<li><a href="#s6">5.6 增量实现 / Incremental Implementation</a></li>
+<li><a href="#s7">5.7 Off-policy MC控制 / Off-policy MC Control</a></li>
+<li><a href="#s8">5.8 *折扣感知重要性采样 / Discounting-aware IS</a></li>
+<li><a href="#s9">5.9 *逐决策重要性采样 / Per-decision IS</a></li>
+<li><a href="#s10">5.10 小结 / Summary</a></li>
+</ul>
+</div>
+
+<!-- 引言 -->
+<div class="section">
+<h3>引言 / Introduction</h3>
+<div class="bilingual">
+<div class="en">In this chapter we consider our first <span class="key-term">learning methods</span> for estimating value functions and discovering optimal policies. Unlike the previous chapter, here we do not assume complete knowledge of the environment. Monte Carlo methods require only <span class="key-term">experience</span>—sample sequences of states, actions, and rewards from actual or simulated interaction with an environment.</div>
+<div class="cn">本章介绍我们第一批<span class="key-term">学习方法</span>，用于估计价值函数和发现最优策略。与上一章不同，这里我们不假设对环境有完整的了解。蒙特卡洛方法只需要<span class="key-term">经验</span>——即从与环境的实际或模拟交互中获取的状态、动作和奖励的样本序列。</div>
+</div>
+<div class="bilingual">
+<div class="en">Monte Carlo methods are ways of solving the RL problem based on <span class="key-term">averaging sample returns</span>. To ensure well-defined returns are available, we define MC methods only for <span class="key-term">episodic tasks</span>. Experience is divided into episodes, and all episodes eventually terminate. Only on the completion of an episode are value estimates and policies changed.</div>
+<div class="cn">蒙特卡洛方法是基于<span class="key-term">平均样本回报</span>来解决强化学习问题的方法。为确保有定义良好的回报，我们仅对<span class="key-term">回合制任务</span>定义MC方法。经验被划分为若干回合，所有回合最终都会终止。只有在回合完成时，价值估计和策略才会改变。</div>
+</div>
+<div class="bilingual">
+<div class="en">To handle the nonstationarity, we adapt the idea of <span class="key-term">generalized policy iteration (GPI)</span> developed in Chapter 4 for DP. Whereas there we computed value functions from knowledge of the MDP, here we learn value functions from sample returns with the MDP.</div>
+<div class="cn">为了处理非平稳性，我们沿用了第四章为DP开发的<span class="key-term">广义策略迭代（GPI）</span>思想。在那里我们从MDP的知识计算价值函数，而在这里我们从MDP的样本回报中学习价值函数。</div>
+</div>
+</div>
+
+<!-- 5.1 -->
+<div class="section" id="s1">
+<h3>5.1 蒙特卡洛预测 / Monte Carlo Prediction</h3>
+<div class="bilingual">
+<div class="en">We begin by considering MC methods for learning the state-value function for a given policy. The value of a state is the <span class="key-term">expected return</span>—expected cumulative future discounted reward. An obvious way to estimate it from experience is simply to <span class="key-term">average the returns</span> observed after visits to that state.</div>
+<div class="cn">我们首先考虑用MC方法学习给定策略下的状态价值函数。一个状态的价值是<span class="key-term">期望回报</span>——即期望的累积未来折扣奖励。从经验中估计它的一个显而易见的方法就是简单地<span class="key-term">平均</span>在该状态被访问后观察到的<span class="key-term">回报</span>。</div>
+</div>
+
+<div class="bilingual">
+<div class="en"><span class="key-term">First-visit MC</span> estimates v<sub>π</sub>(s) as the average of returns following <em>first visits</em> to s. <span class="key-term">Every-visit MC</span> averages returns following <em>all visits</em> to s. Both converge to v<sub>π</sub>(s) as the number of visits goes to infinity.</div>
+<div class="cn"><span class="key-term">首次访问MC</span>将v<sub>π</sub>(s)估计为<em>首次访问</em>s后回报的平均值。<span class="key-term">每次访问MC</span>则平均<em>所有访问</em>s后的回报。两者都随着访问次数趋于无穷大而收敛到v<sub>π</sub>(s)。</div>
+</div>
+
+<div class="pseudo">首次访问MC预测算法，估计V ≈ v<sub>π</sub>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+输入：待评估的策略 π
+初始化：
+  V(s) ∈ ℝ，任意值，对所有 s ∈ S
+  Returns(s) ← 空列表，对所有 s ∈ S
+
+循环（每个回合）：
+  按策略 π 生成回合：S₀,A₀,R₁,S₁,...,S_{T-1},A_{T-1},R_T
+  G ← 0
+  对回合中每一步 t = T-1, T-2, ..., 0 循环：
+    G ← γ·G + R_{t+1}
+    若 S_t 未出现在 S₀,S₁,...,S_{t-1} 中：
+      将 G 追加到 Returns(S_t)
+      V(S_t) ← average(Returns(S_t))</div>
+
+<div class="bilingual">
+<div class="en"><strong>Example 5.1: Blackjack.</strong> Playing blackjack is naturally formulated as an episodic finite MDP. Each game is an episode. Rewards of +1, −1, and 0 for winning, losing, and drawing. The player makes decisions based on three variables: current sum (12–21), dealer's showing card (ace–10), and whether holding a usable ace. This gives 200 states.</div>
+<div class="cn"><strong>例5.1：21点（Blackjack）。</strong>打21点自然地建模为回合制有限MDP。每局游戏是一个回合。赢、输、平的奖励分别为+1、−1和0。玩家基于三个变量做决策：当前总和（12-21）、庄家明牌（A-10）、以及是否有可用A。共200个状态。</div>
+</div>
+
+<div class="note">
+<strong>💡 关键优势 / Key Advantage:</strong> MC方法对每个状态的估计是<strong>独立的</strong>——一个状态的估计不依赖于其他状态的估计（不像DP那样自举/bootstrap）。估计单个状态值的计算代价与状态总数无关。
+</div>
+</div>
+
+<!-- 5.2 -->
+<div class="section" id="s2">
+<h3>5.2 动作价值估计 / Monte Carlo Estimation of Action Values</h3>
+<div class="bilingual">
+<div class="en">If a model is not available, it is particularly useful to estimate <span class="key-term">action values</span> (values of state–action pairs) rather than state values. With a model, state values alone suffice to determine a policy. Without a model, one must explicitly estimate the value of each action.</div>
+<div class="cn">如果没有模型，估计<span class="key-term">动作价值</span>（状态-动作对的价值）比状态价值更有用。有模型时，仅状态价值就足以确定策略。没有模型时，必须显式地估计每个动作的价值。</div>
+</div>
+<div class="bilingual">
+<div class="en">The only complication is that many state–action pairs may never be visited. When MC methods are used to estimate action values, this is a serious problem. This is the general problem of <span class="key-term">maintaining exploration</span>.</div>
+<div class="cn">唯一的复杂之处是许多状态-动作对可能永远不会被访问到。当用MC方法估计动作价值时，这是一个严重的问题。这就是<span class="key-term">维持探索</span>的一般性问题。</div>
+</div>
+</div>
+
+<!-- 5.3 -->
+<div class="section" id="s3">
+<h3>5.3 蒙特卡洛控制 / Monte Carlo Control</h3>
+<div class="bilingual">
+<div class="en">In <span class="key-term">Monte Carlo ES (Exploring Starts)</span>, all episodes start with a state–action pair randomly selected to cover all possibilities. The policy is improved by making it greedy with respect to the current action-value function.</div>
+<div class="cn">在<span class="key-term">蒙特卡洛ES（探索起点）</span>中，所有回合以随机选择的状态-动作对开始，以覆盖所有可能性。通过使策略关于当前动作价值函数变为贪心策略来进行策略改进。</div>
+</div>
+<div class="pseudo">蒙特卡洛ES（探索起点）控制，估计 π ≈ π*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+初始化：
+  π(s) ∈ A(s)（任意），对所有 s ∈ S
+  Q(s,a) ∈ ℝ（任意），对所有 s ∈ S, a ∈ A(s)
+  Returns(s,a) ← 空列表
+
+循环（每个回合）：
+  随机选择 S₀, A₀（保证所有对都能被选到）
+  按策略 π 从 S₀,A₀ 生成回合
+  G ← 0
+  对 t = T-1, T-2, ..., 0：
+    G ← γ·G + R_{t+1}
+    若 (S_t,A_t) 未在之前出现过：
+      将 G 追加到 Returns(S_t,A_t)
+      Q(S_t,A_t) ← average(Returns(S_t,A_t))
+      A* ← argmax_a Q(S_t,a)
+      π(S_t) ← A*</div>
+<div class="note-warn">
+<strong>⚠️ 局限性：</strong>探索起点假设在实践中通常不现实——我们不能总是随意重置到任意状态-动作对。
+</div>
+</div>
+
+<!-- 5.4 -->
+<div class="section" id="s4">
+<h3>5.4 无探索起点的MC控制 / MC Control without Exploring Starts</h3>
+<div class="bilingual">
+<div class="en">The only general way to ensure all actions are selected infinitely often is for the agent to continue to select them. <span class="key-term">On-policy methods</span> evaluate/improve the policy used for decisions. <span class="key-term">Off-policy methods</span> evaluate/improve a different policy from that used to generate data.</div>
+<div class="cn">确保所有动作被无限次选择的唯一通用方法是让智能体持续选择它们。<span class="key-term">On-policy方法</span>评估/改进用于决策的策略。<span class="key-term">Off-policy方法</span>评估/改进一个不同于用于生成数据的策略。</div>
+</div>
+<div class="bilingual">
+<div class="en">The on-policy method uses <span class="key-term">ε-greedy policies</span>: most of the time choose the action with maximal estimated value, but with probability ε select a random action. All nongreedy actions get probability ε/|A(s)|, and the greedy action gets 1 − ε + ε/|A(s)|.</div>
+<div class="cn">On-policy方法使用<span class="key-term">ε-贪心策略</span>：大部分时间选择估计价值最大的动作，但以概率ε随机选择一个动作。所有非贪心动作获得概率ε/|A(s)|，贪心动作获得1 − ε + ε/|A(s)|。</div>
+</div>
+
+<div class="pseudo">On-policy首次访问MC控制（ε-soft策略），估计 π ≈ π*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+算法参数：小 ε > 0
+初始化：π ← 任意 ε-soft 策略
+循环（每个回合）：
+  按策略 π 生成回合
+  对每个 (S_t, A_t)：
+    Q(S_t,A_t) ← 更新（同MC ES）
+    A* ← argmax_a Q(S_t,a)
+    对所有 a ∈ A(S_t)：
+      π(a|S_t) ← 1−ε+ε/|A| 若 a=A*
+      π(a|S_t) ← ε/|A|     若 a≠A*</div>
+
+<div class="note">
+<strong>💡 策略改进定理保证：</strong>对于任何ε-soft策略π，关于q<sub>π</sub>的ε-贪心策略π'保证满足 v<sub>π'</sub>(s) ≥ v<sub>π</sub>(s)。当ε-soft策略不再被改进时，它就是ε-soft策略中最优的。
+</div>
+</div>
+
+<!-- 5.5 -->
+<div class="section" id="s5">
+<h3>5.5 Off-policy预测（重要性采样）/ Off-policy Prediction via Importance Sampling</h3>
+<div class="bilingual">
+<div class="en">All learning control methods face a dilemma: they seek to learn about optimal behavior but need to behave non-optimally to explore. <span class="key-term">Off-policy methods</span> use two policies: a <span class="key-term">target policy</span> π (being learned about) and a <span class="key-term">behavior policy</span> b (used to generate data).</div>
+<div class="cn">所有学习控制方法都面临一个困境：它们想学习最优行为，但需要非最优地行为来探索。<span class="key-term">Off-policy方法</span>使用两个策略：<span class="key-term">目标策略</span>π（被学习的对象）和<span class="key-term">行为策略</span>b（用于生成数据）。</div>
+</div>
+
+<div class="bilingual">
+<div class="en"><span class="key-term">Importance sampling</span> weights returns by the relative probability of trajectories under target and behavior policies. The <span class="key-term">importance-sampling ratio</span> is:</div>
+<div class="cn"><span class="key-term">重要性采样</span>通过目标策略和行为策略下轨迹的相对概率来加权回报。<span class="key-term">重要性采样比率</span>为：</div>
+</div>
+<div class="formula">
+ρ<sub>t:T-1</sub> = ∏<sub>k=t</sub><sup>T-1</sup> π(A<sub>k</sub>|S<sub>k</sub>) / b(A<sub>k</sub>|S<sub>k</sub>)
+</div>
+<div class="note">
+<strong>💡 关键发现：</strong>虽然轨迹概率依赖于MDP的转移概率（通常未知），但它们在分子和分母中完全相同，因此被抵消了。重要性采样比率仅依赖于两个策略和序列，而不依赖于MDP。
+</div>
+
+<div class="bilingual">
+<div class="en"><strong>Ordinary importance sampling</strong> uses a simple average: V(s) = (1/|T(s)|) Σ ρ<sub>t:T-1</sub> G<sub>t</sub>. This produces <em>unbiased</em> estimates but may have infinite variance.</div>
+<div class="cn"><strong>普通重要性采样</strong>使用简单平均：V(s) = (1/|T(s)|) Σ ρ<sub>t:T-1</sub> G<sub>t</sub>。这产生<em>无偏</em>估计，但可能有无穷大方差。</div>
+</div>
+<div class="bilingual">
+<div class="en"><strong>Weighted importance sampling</strong> uses a weighted average: V(s) = Σ ρ<sub>t:T-1</sub> G<sub>t</sub> / Σ ρ<sub>t:T-1</sub>. This always has finite variance and is preferred in practice.</div>
+<div class="cn"><strong>加权重要性采样</strong>使用加权平均：V(s) = Σ ρ<sub>t:T-1</sub> G<sub>t</sub> / Σ ρ<sub>t:T-1</sub>。这总是有有限方差，在实践中更受青睐。</div>
+</div>
+
+<div class="note-warn">
+<strong>⚠️ 例5.5：</strong>普通重要性采样在某些问题上极其不稳定——即使经过数百万回合，估计值也无法收敛到正确值。这是因为重要性采样缩放回报的方差可能是无穷大的。
+</div>
+</div>
+
+<!-- 5.6 -->
+<div class="section" id="s6">
+<h3>5.6 增量实现 / Incremental Implementation</h3>
+<div class="bilingual">
+<div class="en">MC prediction methods can be implemented incrementally, episode-by-episode. For on-policy methods, same techniques as Chapter 2 apply (averaging returns instead of rewards). For off-policy with weighted importance sampling, we maintain a cumulative weight sum C<sub>n</sub>:</div>
+<div class="cn">MC预测方法可以逐回合增量实现。对于on-policy方法，使用与第2章相同的技术（平均回报而非奖励）。对于带加权重要性采样的off-policy方法，我们维护累积权重和C<sub>n</sub>：</div>
+</div>
+<div class="formula">
+V<sub>n+1</sub> = V<sub>n</sub> + (W<sub>n</sub> / C<sub>n</sub>) · [G<sub>n</sub> − V<sub>n</sub>]<br>
+C<sub>n+1</sub> = C<sub>n</sub> + W<sub>n+1</sub>
+</div>
+
+<div class="pseudo">Off-policy MC预测（策略评估），估计 Q ≈ q<sub>π</sub>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+输入：任意目标策略 π
+初始化：Q(s,a) ∈ ℝ（任意），C(s,a) ← 0
+循环（每个回合）：
+  b ← 满足 π 覆盖条件的任意策略
+  按 b 生成回合
+  G ← 0, W ← 1
+  对 t = T-1, T-2, ..., 0（当 W ≠ 0）：
+    G ← γ·G + R_{t+1}
+    C(S_t,A_t) ← C(S_t,A_t) + W
+    Q(S_t,A_t) ← Q(S_t,A_t) + (W/C(S_t,A_t))[G − Q(S_t,A_t)]
+    W ← W · π(A_t|S_t) / b(A_t|S_t)</div>
+</div>
+
+<!-- 5.7 -->
+<div class="section" id="s7">
+<h3>5.7 Off-policy MC控制 / Off-policy Monte Carlo Control</h3>
+<div class="bilingual">
+<div class="en">In off-policy control, the <span class="key-term">target policy π ≈ π*</span> is greedy with respect to Q (estimate of q<sub>π</sub>), while the <span class="key-term">behavior policy b</span> is soft (e.g., ε-greedy) to ensure exploration. The policy π converges to optimal at all encountered states.</div>
+<div class="cn">在off-policy控制中，<span class="key-term">目标策略π ≈ π*</span>关于Q（q<sub>π</sub>的估计）是贪心的，而<span class="key-term">行为策略b</span>是soft的（如ε-贪心）以确保探索。策略π在所有遇到的状态上收敛到最优。</div>
+</div>
+
+<div class="pseudo">Off-policy MC控制，估计 π ≈ π*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+初始化：Q(s,a) ∈ ℝ，C(s,a) ← 0
+         π(s) ← argmax_a Q(s,a)
+循环（每个回合）：
+  b ← 任意 soft 策略
+  按 b 生成回合：S₀,A₀,R₁,...,S_{T-1},A_{T-1},R_T
+  G ← 0, W ← 1
+  对 t = T-1, T-2, ..., 0：
+    G ← γ·G + R_{t+1}
+    C(S_t,A_t) ← C(S_t,A_t) + W
+    Q(S_t,A_t) ← Q(S_t,A_t) + (W/C(S_t,A_t))[G − Q(S_t,A_t)]
+    π(S_t) ← argmax_a Q(S_t,a)
+    若 A_t ≠ π(S_t)，退出内层循环（进入下一回合）
+    W ← W · 1/b(A_t|S_t)</div>
+
+<div class="note-warn">
+<strong>⚠️ 潜在问题：</strong>此方法仅从回合的尾部学习——即当回合中所有剩余动作都是贪心的时候。如果非贪心动作很常见，学习将会很慢。
+</div>
+</div>
+
+<!-- 5.8 -->
+<div class="section" id="s8">
+<h3>5.8 *折扣感知重要性采样 / Discounting-aware Importance Sampling</h3>
+<div class="bilingual">
+<div class="en">When episodes are long and γ is significantly less than 1, conventional importance sampling introduces enormous unnecessary variance. The key insight: treat discounting as a <span class="key-term">probability of partial termination</span>. The return G<sub>0</sub> can be decomposed into <span class="key-term">flat partial returns</span> weighted by termination probabilities.</div>
+<div class="cn">当回合很长且γ显著小于1时，传统重要性采样会引入巨大的不必要方差。关键洞察：将折扣视为<span class="key-term">部分终止的概率</span>。回报G<sub>0</sub>可以分解为由终止概率加权的<span class="key-term">平坦部分回报</span>。</div>
+</div>
+<div class="formula">
+G<sub>t</sub> = (1−γ) Σ<sub>h=t+1</sub><sup>T-1</sup> γ<sup>h-t-1</sup> G̅<sub>t:h</sub> + γ<sup>T-t-1</sup> G̅<sub>t:T</sub><br>
+其中 G̅<sub>t:h</sub> = R<sub>t+1</sub> + R<sub>t+2</sub> + ··· + R<sub>h</sub>（平坦部分回报）
+</div>
+</div>
+
+<!-- 5.9 -->
+<div class="section" id="s9">
+<h3>5.9 *逐决策重要性采样 / Per-decision Importance Sampling</h3>
+<div class="bilingual">
+<div class="en">Even without discounting (γ=1), the structure of returns as sums of rewards can reduce variance. Each reward R<sub>t+k</sub> in the return only needs to be scaled by the importance-sampling ratio up to that point, not the full ratio. This is <span class="key-term">per-decision importance sampling</span>.</div>
+<div class="cn">即使没有折扣（γ=1），回报作为奖励之和的结构也可以减少方差。回报中的每个奖励R<sub>t+k</sub>只需要用截至该点的重要性采样比率来缩放，而非完整比率。这就是<span class="key-term">逐决策重要性采样</span>。</div>
+</div>
+<div class="formula">
+G̃<sub>t</sub> = ρ<sub>t:t</sub> R<sub>t+1</sub> + γρ<sub>t:t+1</sub> R<sub>t+2</sub> + γ²ρ<sub>t:t+2</sub> R<sub>t+3</sub> + ···
+</div>
+</div>
+
+<!-- 5.10 -->
+<div class="section" id="s10">
+<h3>5.10 小结 / Summary</h3>
+<div class="bilingual">
+<div class="en">Monte Carlo methods learn value functions from <span class="key-term">sample episodes</span>. They have at least four advantages over DP: (1) learn directly from interaction without a model; (2) work with simulation/samples; (3) easy to focus on a subset of states; (4) may be less harmed by violations of the Markov property (no bootstrapping).</div>
+<div class="cn">蒙特卡洛方法从<span class="key-term">样本回合</span>中学习价值函数。相比DP至少有四大优势：(1) 直接从交互中学习，无需模型；(2) 可与仿真/样本配合使用；(3) 容易聚焦于状态子集；(4) 可能较少受马尔可夫性违反的影响（不自举）。</div>
+</div>
+<div class="bilingual">
+<div class="en">MC control follows GPI: intermix policy evaluation (averaging returns) and policy improvement. <span class="key-term">On-policy</span> methods learn the value of the exploratory policy. <span class="key-term">Off-policy</span> methods separate behavior and target policies, using <span class="key-term">importance sampling</span>.</div>
+<div class="cn">MC控制遵循GPI：交替进行策略评估（平均回报）和策略改进。<span class="key-term">On-policy</span>方法学习探索性策略的价值。<span class="key-term">Off-policy</span>方法将行为策略和目标策略分离，使用<span class="key-term">重要性采样</span>。</div>
+</div>
+
+<h4 style="margin-top:20px; color:var(--accent);">核心概念速查 / Key Concepts</h4>
+<table class="summary">
+<tr><th>术语 / Term</th><th>英文 / English</th><th>含义 / Meaning</th></tr>
+<tr><td>首次访问MC</td><td>First-visit MC</td><td>仅平均首次访问状态后的回报</td></tr>
+<tr><td>每次访问MC</td><td>Every-visit MC</td><td>平均所有访问状态后的回报</td></tr>
+<tr><td>探索起点</td><td>Exploring Starts</td><td>随机选择初始状态-动作对以确保覆盖</td></tr>
+<tr><td>On-policy</td><td>On-policy</td><td>学习和使用同一策略</td></tr>
+<tr><td>Off-policy</td><td>Off-policy</td><td>学习目标策略，使用行为策略生成数据</td></tr>
+<tr><td>重要性采样</td><td>Importance Sampling</td><td>通过策略概率比加权回报</td></tr>
+<tr><td>普通重要性采样</td><td>Ordinary IS</td><td>简单平均加权回报（无偏，方差可能无穷大）</td></tr>
+<tr><td>加权重要性采样</td><td>Weighted IS</td><td>加权平均（有偏但一致，方差有限）</td></tr>
+<tr><td>ε-贪心策略</td><td>ε-greedy Policy</td><td>以1-ε概率选贪心动作，ε概率随机探索</td></tr>
+<tr><td>GPI</td><td>Generalized Policy Iteration</td><td>策略评估与策略改进的交互过程</td></tr>
+</table>
+</div>
+
+</div>
+</body>
+</html>

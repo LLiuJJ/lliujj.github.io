@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 6: Temporal-Difference Learning | 第六章：时序差分学习</title>
+<style>
+:root { --accent: #6a1b9a; --accent-light: #f3e5f5; --highlight: #fff59d; --bg: #f5f7fa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #333; line-height: 1.8; }
+.hero { background: linear-gradient(135deg, #4a148c, #6a1b9a, #8e24aa); color: white; padding: 60px 20px; text-align: center; }
+.hero h1 { font-size: 2.2em; margin-bottom: 10px; }
+.hero h2 { font-size: 1.5em; font-weight: 300; opacity: 0.9; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.toc { background: white; border-radius: 12px; padding: 30px; margin: 30px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.toc h3 { color: var(--accent); margin-bottom: 15px; }
+.toc ul { list-style: none; columns: 2; }
+.toc li { padding: 5px 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.section { background: white; border-radius: 12px; padding: 30px; margin: 25px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.section h3 { color: var(--accent); font-size: 1.5em; margin-bottom: 20px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }
+.bilingual { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0; }
+.en { border-left: 4px solid var(--accent); background: var(--accent-light); padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.cn { border-left: 4px solid #e74c3c; background: #fdf5f3; padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.key-term { background: var(--highlight); padding: 1px 6px; font-weight: 600; border-radius: 3px; }
+.formula { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0; text-align: center; font-family: 'Cambria Math', serif; font-size: 1.1em; overflow-x: auto; }
+.pseudo { background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.9em; line-height: 1.6; margin: 15px 0; overflow-x: auto; white-space: pre-wrap; }
+.note { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.note-warn { background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+table.summary { width: 100%; border-collapse: collapse; margin: 15px 0; }
+table.summary th { background: var(--accent); color: white; padding: 12px 15px; text-align: left; }
+table.summary td { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; }
+table.summary tr:nth-child(even) { background: #f8f9fa; }
+.compare { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 15px 0; }
+.compare div { padding: 12px; border-radius: 8px; font-size: 0.95em; }
+.compare .mc { background: #e3f2fd; border: 2px solid #1565c0; }
+.compare .td { background: #f3e5f5; border: 2px solid #6a1b9a; }
+.compare .dp { background: #fff3e0; border: 2px solid #e65100; }
+@media (max-width: 768px) { .bilingual, .compare { grid-template-columns: 1fr; } .toc ul { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>Chapter 6: Temporal-Difference Learning</h1>
+<h2>第六章：时序差分学习</h2>
+</div>
+<div class="container">
+
+<div class="toc">
+<h3>📑 目录 / Table of Contents</h3>
+<ul>
+<li><a href="#s1">6.1 TD预测 / TD Prediction</a></li>
+<li><a href="#s2">6.2 TD优势 / Advantages of TD</a></li>
+<li><a href="#s3">6.3 TD(0)最优性 / Optimality of TD(0)</a></li>
+<li><a href="#s4">6.4 Sarsa / On-policy TD Control</a></li>
+<li><a href="#s5">6.5 Q-learning / Off-policy TD Control</a></li>
+<li><a href="#s6">6.6 Expected Sarsa</a></li>
+<li><a href="#s7">6.7 最大化偏差与双重学习 / Maximization Bias</a></li>
+<li><a href="#s8">6.8 博弈与后状态 / Games & Afterstates</a></li>
+<li><a href="#s9">6.9 小结 / Summary</a></li>
+</ul>
+</div>
+
+<!-- 引言 -->
+<div class="section">
+<h3>引言 / Introduction</h3>
+<div class="bilingual">
+<div class="en">If one had to identify one idea as central and novel to reinforcement learning, it would undoubtedly be <span class="key-term">temporal-difference (TD) learning</span>. TD learning is a combination of Monte Carlo ideas and dynamic programming (DP) ideas. Like MC methods, TD methods can learn directly from raw experience without a model. Like DP, TD methods update estimates based in part on other learned estimates (they <span class="key-term">bootstrap</span>).</div>
+<div class="cn">如果要找出强化学习中一个核心且新颖的思想，那毫无疑问是<span class="key-term">时序差分（TD）学习</span>。TD学习是蒙特卡洛思想和动态规划（DP）思想的结合。像MC方法一样，TD方法可以直接从原始经验中学习，无需模型。像DP一样，TD方法部分基于其他学习到的估计来更新估计（它们<span class="key-term">自举</span>）。</div>
+</div>
+
+<div class="compare">
+<div class="mc"><strong>MC方法</strong><br>从完整回报学习<br>不依赖模型<br>不自举</div>
+<div class="td"><strong>TD方法</strong><br>从TD目标学习<br>不依赖模型<br>自举</div>
+<div class="dp"><strong>DP方法</strong><br>从期望更新学习<br>需要模型<br>自举</div>
+</div>
+</div>
+
+<!-- 6.1 -->
+<div class="section" id="s1">
+<h3>6.1 TD预测 / TD Prediction</h3>
+<div class="bilingual">
+<div class="en">Monte Carlo methods wait until the return is known, then use G<sub>t</sub> as target. TD methods need wait only until the <span class="key-term">next time step</span>. At time t+1 they immediately form a target using R<sub>t+1</sub> and V(S<sub>t+1</sub>). The simplest TD method, <span class="key-term">TD(0)</span>, makes the update:</div>
+<div class="cn">蒙特卡洛方法等到回报已知后，用G<sub>t</sub>作为目标。TD方法只需等到<span class="key-term">下一个时间步</span>。在t+1时刻，它们立即使用R<sub>t+1</sub>和V(S<sub>t+1</sub>)形成目标。最简单的TD方法<span class="key-term">TD(0)</span>执行如下更新：</div>
+</div>
+<div class="formula">
+V(S<sub>t</sub>) ← V(S<sub>t</sub>) + α [ R<sub>t+1</sub> + γV(S<sub>t+1</sub>) − V(S<sub>t</sub>) ]
+</div>
+
+<div class="pseudo">表格型TD(0)，估计V ≈ v<sub>π</sub>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+输入：待评估策略 π；步长 α ∈ (0,1]
+初始化：V(s) 任意值（V(终止)=0）
+对每个回合循环：
+  初始化 S
+  对回合中每一步循环：
+    A ← π(S) 给出的动作
+    执行动作 A，观察 R, S'
+    V(S) ← V(S) + α[R + γV(S') − V(S)]
+    S ← S'
+  直到 S 为终止状态</div>
+
+<div class="bilingual">
+<div class="en">The quantity in brackets is the <span class="key-term">TD error</span>, measuring the difference between the estimated value and the better estimate:</div>
+<div class="cn">方括号中的量是<span class="key-term">TD误差</span>，衡量估计值与更好估计之间的差异：</div>
+</div>
+<div class="formula">
+δ<sub>t</sub> = R<sub>t+1</sub> + γV(S<sub>t+1</sub>) − V(S<sub>t</sub>)
+</div>
+
+<div class="bilingual">
+<div class="en"><strong>Example: Driving Home.</strong> You estimate 30 minutes to get home. After reaching your car (5 min later, raining), you reestimate 35 more minutes. TD updates immediately shift your initial estimate toward 40 minutes, without waiting to actually arrive home.</div>
+<div class="cn"><strong>例：开车回家。</strong>你估计30分钟到家。到达车旁时（5分钟后，下雨），你重新估计还需35分钟。TD会立即将你的初始估计向40分钟方向调整，而不需要等到实际到家。</div>
+</div>
+
+<div class="note">
+<strong>💡 MC误差 = TD误差之和：</strong>如果V在回合内不变，MC误差可以写成TD误差的折扣和：G<sub>t</sub> − V(S<sub>t</sub>) = Σ<sub>k=t</sub><sup>T-1</sup> γ<sup>k-t</sup> δ<sub>k</sub>
+</div>
+</div>
+
+<!-- 6.2 -->
+<div class="section" id="s2">
+<h3>6.2 TD预测方法的优势 / Advantages of TD Prediction</h3>
+<div class="bilingual">
+<div class="en">TD methods have advantages over DP (no model needed) and over MC (<span class="key-term">online, fully incremental</span> — no need to wait for episode completion). This is critical for very long episodes or continuing tasks with no episodes.</div>
+<div class="cn">TD方法相比DP的优势（不需要模型），相比MC的优势（<span class="key-term">在线、完全增量</span>——无需等待回合完成）。这对于非常长的回合或没有回合的持续性任务至关重要。</div>
+</div>
+<div class="bilingual">
+<div class="en"><strong>Convergence:</strong> For any fixed policy π, TD(0) converges to v<sub>π</sub> — in the mean for constant α, and with probability 1 if α decreases according to standard conditions.</div>
+<div class="cn"><strong>收敛性：</strong>对于任何固定策略π，TD(0)收敛到v<sub>π</sub>——对常数α均值收敛，若α按标准条件递减则以概率1收敛。</div>
+</div>
+<div class="bilingual">
+<div class="en"><strong>Example 6.2: Random Walk.</strong> In a 5-state MRP (A-E), start at C, move left/right with equal probability. Terminate on left (reward 0) or right (reward +1). True values: 1/6, 2/6, 3/6, 4/6, 5/6. TD(0) consistently outperforms constant-α MC in convergence speed.</div>
+<div class="cn"><strong>例6.2：随机游走。</strong>在一个5状态MRP（A-E）中，从C开始，等概率左/右移动。在最左终止（奖励0）或最右终止（奖励+1）。真实值：1/6, 2/6, 3/6, 4/6, 5/6。TD(0)在收敛速度上始终优于常数α MC。</div>
+</div>
+</div>
+
+<!-- 6.3 -->
+<div class="section" id="s3">
+<h3>6.3 TD(0)的最优性 / Optimality of TD(0)</h3>
+<div class="bilingual">
+<div class="en">Under <span class="key-term">batch updating</span> (repeatedly processing a finite set of experience), batch MC converges to estimates minimizing mean-squared error on training data. Batch TD(0) converges to the <span class="key-term">certainty-equivalence estimate</span> — the true values of the maximum-likelihood model of the Markov process.</div>
+<div class="cn">在<span class="key-term">批量更新</span>（反复处理有限经验集）下，批量MC收敛到最小化训练数据均方误差的估计。批量TD(0)收敛到<span class="key-term">确定性等价估计</span>——即马尔可夫过程最大似然模型的真实值。</div>
+</div>
+<div class="bilingual">
+<div class="en"><strong>Example 6.4:</strong> Given 8 episodes where B→1 six times and B→0 twice, V(B)=3/4. For state A (which always transitions to B with reward 0): batch TD gives V(A)=3/4 (using the model), while batch MC gives V(A)=0 (the observed return). The TD answer generalizes better.</div>
+<div class="cn"><strong>例6.4：</strong>给定8个回合，B→1出现6次，B→0出现2次，V(B)=3/4。对于状态A（总是以奖励0转移到B）：批量TD给出V(A)=3/4（利用模型），而批量MC给出V(A)=0（观察到的回报）。TD的答案泛化性更好。</div>
+</div>
+<div class="note">
+<strong>💡 关键结论：</strong>批量MC最小化训练集上的均方误差，而批量TD(0)计算确定性等价估计。TD方法收敛更快，因为它朝着更好的估计方向移动。
+</div>
+</div>
+
+<!-- 6.4 Sarsa -->
+<div class="section" id="s4">
+<h3>6.4 Sarsa：On-policy TD控制 / On-policy TD Control</h3>
+<div class="bilingual">
+<div class="en">For control, we learn action-value function Q(s,a). <span class="key-term">Sarsa</span> updates Q based on the quintuple (S<sub>t</sub>, A<sub>t</sub>, R<sub>t+1</sub>, S<sub>t+1</sub>, A<sub>t+1</sub>):</div>
+<div class="cn">对于控制问题，我们学习动作价值函数Q(s,a)。<span class="key-term">Sarsa</span>基于五元组(S<sub>t</sub>, A<sub>t</sub>, R<sub>t+1</sub>, S<sub>t+1</sub>, A<sub>t+1</sub>)更新Q：</div>
+</div>
+<div class="formula">
+Q(S<sub>t</sub>, A<sub>t</sub>) ← Q(S<sub>t</sub>, A<sub>t</sub>) + α [ R<sub>t+1</sub> + γQ(S<sub>t+1</sub>, A<sub>t+1</sub>) − Q(S<sub>t</sub>, A<sub>t</sub>) ]
+</div>
+
+<div class="pseudo">Sarsa（on-policy TD控制），估计 Q ≈ q*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+参数：步长 α ∈ (0,1]，小 ε > 0
+初始化：Q(s,a) 任意值（Q(终止,·)=0）
+对每个回合循环：
+  初始化 S
+  用Q导出策略选择 A（如 ε-贪心）
+  对每一步循环：
+    执行 A，观察 R, S'
+    用Q导出策略从 S' 选择 A'
+    Q(S,A) ← Q(S,A) + α[R + γQ(S',A') − Q(S,A)]
+    S ← S'; A ← A'
+  直到 S 终止</div>
+
+<div class="bilingual">
+<div class="en"><strong>Example 6.5: Windy Gridworld.</strong> A gridworld with a crosswind pushing the agent upward. Sarsa learns the optimal policy. MC methods cannot easily be used here because termination is not guaranteed for all policies.</div>
+<div class="cn"><strong>例6.5：有风网格世界。</strong>一个有向上交叉风的网格世界。Sarsa学习到最优策略。MC方法在这里不容易使用，因为不能保证所有策略都能终止。</div>
+</div>
+</div>
+
+<!-- 6.5 Q-learning -->
+<div class="section" id="s5">
+<h3>6.5 Q-learning：Off-policy TD控制 / Off-policy TD Control</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Q-learning</span> is a breakthrough off-policy algorithm. The learned Q directly approximates q*, independent of the policy being followed:</div>
+<div class="cn"><span class="key-term">Q-learning</span>是一个突破性的off-policy算法。学习到的Q直接逼近q*，与所遵循的策略无关：</div>
+</div>
+<div class="formula">
+Q(S<sub>t</sub>, A<sub>t</sub>) ← Q(S<sub>t</sub>, A<sub>t</sub>) + α [ R<sub>t+1</sub> + γ max<sub>a</sub> Q(S<sub>t+1</sub>, a) − Q(S<sub>t</sub>, A<sub>t</sub>) ]
+</div>
+
+<div class="pseudo">Q-learning（off-policy TD控制），估计 π ≈ π*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+参数：步长 α ∈ (0,1]，小 ε > 0
+初始化：Q(s,a) 任意值
+对每个回合循环：
+  初始化 S
+  对每一步循环：
+    用Q导出策略选择 A（如 ε-贪心）
+    执行 A，观察 R, S'
+    Q(S,A) ← Q(S,A) + α[R + γ max_a Q(S',a) − Q(S,A)]
+    S ← S'
+  直到 S 终止</div>
+
+<div class="bilingual">
+<div class="en"><strong>Example 6.6: Cliff Walking.</strong> Compares Sarsa (on-policy) vs Q-learning (off-policy). Q-learning learns the optimal path along the cliff edge, but occasionally falls off due to ε-greedy exploration. Sarsa learns a safer, longer path away from the cliff. Despite Q-learning learning optimal values, its online performance is worse than Sarsa.</div>
+<div class="cn"><strong>例6.6：悬崖行走。</strong>比较Sarsa（on-policy）和Q-learning（off-policy）。Q-learning学习沿悬崖边缘的最优路径，但由于ε-贪心探索偶尔会掉下悬崖。Sarsa学习更安全但更长的远离悬崖的路径。虽然Q-learning学到了最优值，但其在线表现不如Sarsa。</div>
+</div>
+</div>
+
+<!-- 6.6 Expected Sarsa -->
+<div class="section" id="s6">
+<h3>6.6 Expected Sarsa</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Expected Sarsa</span> uses the expected value over next actions instead of the maximum (Q-learning) or the sampled action (Sarsa):</div>
+<div class="cn"><span class="key-term">Expected Sarsa</span>使用下一动作的期望值，而非最大值（Q-learning）或采样的动作（Sarsa）：</div>
+</div>
+<div class="formula">
+Q(S<sub>t</sub>,A<sub>t</sub>) ← Q(S<sub>t</sub>,A<sub>t</sub>) + α [ R<sub>t+1</sub> + γ Σ<sub>a</sub> π(a|S<sub>t+1</sub>)Q(S<sub>t+1</sub>,a) − Q(S<sub>t</sub>,A<sub>t</sub>) ]
+</div>
+<div class="bilingual">
+<div class="en">Expected Sarsa moves deterministically in the same direction Sarsa moves in expectation. It eliminates variance from random action selection. When π is greedy and behavior is exploratory, Expected Sarsa becomes Q-learning. It subsumes and generalizes Q-learning while improving over Sarsa.</div>
+<div class="cn">Expected Sarsa确定性地沿着Sarsa期望移动的方向移动。它消除了随机动作选择带来的方差。当π是贪心的且行为更具探索性时，Expected Sarsa就变成了Q-learning。它涵盖并泛化了Q-learning，同时改进了Sarsa。</div>
+</div>
+</div>
+
+<!-- 6.7 -->
+<div class="section" id="s7">
+<h3>6.7 最大化偏差与双重学习 / Maximization Bias & Double Learning</h3>
+<div class="bilingual">
+<div class="en">All control algorithms involve maximization in constructing target policies. Using a <span class="key-term">maximum of estimates</span> as an estimate of the maximum value introduces a <span class="key-term">positive (maximization) bias</span>. When true values are all zero but estimates are noisy, the maximum estimate is positive while the true maximum is zero.</div>
+<div class="cn">所有控制算法都在构建目标策略时涉及最大化。用<span class="key-term">估计值的最大值</span>作为最大值的估计会引入<span class="key-term">正偏差（最大化偏差）</span>。当真实值全为零但估计值有噪声时，最大估计值为正，而真实最大值为零。</div>
+</div>
+<div class="bilingual">
+<div class="en"><span class="key-term">Double learning</span> solves this by maintaining two independent estimates Q₁ and Q₂. Use Q₁ to determine the maximizing action, and Q₂ to estimate its value (and vice versa):</div>
+<div class="cn"><span class="key-term">双重学习</span>通过维护两个独立估计Q₁和Q₂来解决此问题。用Q₁确定最大化的动作，用Q₂估计其值（反之亦然）：</div>
+</div>
+<div class="formula">
+Q₁(S<sub>t</sub>,A<sub>t</sub>) ← Q₁(S<sub>t</sub>,A<sub>t</sub>) + α [ R<sub>t+1</sub> + γ Q₂(S<sub>t+1</sub>, argmax<sub>a</sub> Q₁(S<sub>t+1</sub>,a)) − Q₁(S<sub>t</sub>,A<sub>t</sub>) ]
+</div>
+
+<div class="pseudo">Double Q-learning，估计 Q₁ ≈ Q₂ ≈ q*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+初始化：Q₁(s,a) 和 Q₂(s,a)
+对每个回合的每一步：
+  用 Q₁+Q₂ 的 ε-贪心策略选择 A
+  执行 A，观察 R, S'
+  以 0.5 概率：
+    Q₁(S,A) ← Q₁(S,A) + α[R + γQ₂(S', argmax Q₁(S',·)) − Q₁(S,A)]
+  否则：
+    Q₂(S,A) ← Q₂(S,A) + α[R + γQ₁(S', argmax Q₂(S',·)) − Q₂(S,A)]</div>
+<div class="note-warn">
+<strong>⚠️ 例6.7：</strong>Q-learning在最大化偏差示例中强烈偏好次优动作（left），即使其期望回报为负。Double Q-learning基本不受最大化偏差影响。
+</div>
+</div>
+
+<!-- 6.8 -->
+<div class="section" id="s8">
+<h3>6.8 博弈、后状态与其他特例 / Games, Afterstates & Special Cases</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Afterstates</span> are states evaluated after the agent has made its move. They're useful when we know the immediate effects of actions but not the full dynamics. In tic-tac-toe, different position–move pairs may produce the same "afterposition" — an afterstate value function assesses them equally, enabling more efficient learning.</div>
+<div class="cn"><span class="key-term">后状态</span>是在智能体执行动作后评估的状态。当我们知道动作的即时效果但不知道完整动态时很有用。在井字棋中，不同的位置-动作对可能产生相同的"后位置"——后状态价值函数对它们进行相同评估，从而实现更高效的学习。</div>
+</div>
+</div>
+
+<!-- 6.9 Summary -->
+<div class="section" id="s9">
+<h3>6.9 小结 / Summary</h3>
+<div class="bilingual">
+<div class="en">TD learning combines MC's ability to learn from experience with DP's bootstrapping. TD control extends via GPI. <span class="key-term">Sarsa</span> is on-policy, <span class="key-term">Q-learning</span> is off-policy, <span class="key-term">Expected Sarsa</span> generalizes both. TD methods are today the most widely used RL methods due to their simplicity and online nature.</div>
+<div class="cn">TD学习结合了MC从经验中学习的能力和DP的自举能力。TD控制通过GPI扩展。<span class="key-term">Sarsa</span>是on-policy的，<span class="key-term">Q-learning</span>是off-policy的，<span class="key-term">Expected Sarsa</span>泛化了两者。TD方法因其简单性和在线特性，是当今使用最广泛的强化学习方法。</div>
+</div>
+
+<h4 style="margin-top:20px; color:var(--accent);">核心概念速查 / Key Concepts</h4>
+<table class="summary">
+<tr><th>术语 / Term</th><th>英文 / English</th><th>含义 / Meaning</th></tr>
+<tr><td>TD误差</td><td>TD Error (δ<sub>t</sub>)</td><td>R+γV(S')−V(S)，预测与更好估计之间的差异</td></tr>
+<tr><td>TD(0)</td><td>TD(0) / One-step TD</td><td>基于单步转移的TD更新</td></tr>
+<tr><td>自举</td><td>Bootstrapping</td><td>基于已有估计来更新估计</td></tr>
+<tr><td>确定性等价</td><td>Certainty Equivalence</td><td>TD(0)批量收敛到的最大似然模型的真实值</td></tr>
+<tr><td>Sarsa</td><td>Sarsa</td><td>On-policy TD控制，使用(S,A,R,S',A')五元组</td></tr>
+<tr><td>Q-learning</td><td>Q-learning</td><td>Off-policy TD控制，目标为R+γ max Q(S',a)</td></tr>
+<tr><td>Expected Sarsa</td><td>Expected Sarsa</td><td>用期望代替max或采样动作，消除随机方差</td></tr>
+<tr><td>最大化偏差</td><td>Maximization Bias</td><td>用估计值的最大值估计最大值导致的正偏差</td></tr>
+<tr><td>双重学习</td><td>Double Learning</td><td>用两个独立估计消除最大化偏差</td></tr>
+<tr><td>后状态</td><td>Afterstate</td><td>动作执行后的状态，利用已知的即时效果</td></tr>
+</table>
+</div>
+
+</div>
+</body>
+</html>

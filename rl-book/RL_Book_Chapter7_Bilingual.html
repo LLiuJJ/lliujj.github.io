@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 7: n-step Bootstrapping | 第七章：n步自举法</title>
+<style>
+:root { --accent: #00695c; --accent-light: #e0f2f1; --highlight: #fff59d; --bg: #f5f7fa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #333; line-height: 1.8; }
+.hero { background: linear-gradient(135deg, #004d40, #00695c, #00897b); color: white; padding: 60px 20px; text-align: center; }
+.hero h1 { font-size: 2.2em; margin-bottom: 10px; }
+.hero h2 { font-size: 1.5em; font-weight: 300; opacity: 0.9; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.toc { background: white; border-radius: 12px; padding: 30px; margin: 30px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.toc h3 { color: var(--accent); margin-bottom: 15px; }
+.toc ul { list-style: none; columns: 2; }
+.toc li { padding: 5px 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.section { background: white; border-radius: 12px; padding: 30px; margin: 25px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.section h3 { color: var(--accent); font-size: 1.5em; margin-bottom: 20px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }
+.bilingual { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0; }
+.en { border-left: 4px solid var(--accent); background: var(--accent-light); padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.cn { border-left: 4px solid #e74c3c; background: #fdf5f3; padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.key-term { background: var(--highlight); padding: 1px 6px; font-weight: 600; border-radius: 3px; }
+.formula { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0; text-align: center; font-family: 'Cambria Math', serif; font-size: 1.05em; overflow-x: auto; }
+.pseudo { background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.88em; line-height: 1.6; margin: 15px 0; overflow-x: auto; white-space: pre-wrap; }
+.note { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.note-warn { background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.spectrum { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 20px 0; flex-wrap: wrap; }
+.spectrum div { padding: 10px 15px; border-radius: 8px; text-align: center; font-size: 0.9em; }
+table.summary { width: 100%; border-collapse: collapse; margin: 15px 0; }
+table.summary th { background: var(--accent); color: white; padding: 12px 15px; text-align: left; }
+table.summary td { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; }
+table.summary tr:nth-child(even) { background: #f8f9fa; }
+@media (max-width: 768px) { .bilingual { grid-template-columns: 1fr; } .toc ul { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>Chapter 7: n-step Bootstrapping</h1>
+<h2>第七章：n步自举法</h2>
+</div>
+<div class="container">
+
+<div class="toc">
+<h3>📑 目录 / Table of Contents</h3>
+<ul>
+<li><a href="#s1">7.1 n步TD预测 / n-step TD Prediction</a></li>
+<li><a href="#s2">7.2 n步Sarsa</a></li>
+<li><a href="#s3">7.3 n步Off-policy学习</a></li>
+<li><a href="#s4">7.4 *逐决策方法与控制变量</a></li>
+<li><a href="#s5">7.5 无重要性采样的Off-policy：树备份</a></li>
+<li><a href="#s6">7.6 *统一算法：n步Q(σ)</a></li>
+<li><a href="#s7">7.7 小结 / Summary</a></li>
+</ul>
+</div>
+
+<!-- 引言 -->
+<div class="section">
+<h3>引言 / Introduction</h3>
+<div class="bilingual">
+<div class="en">This chapter unifies MC methods and one-step TD methods. <span class="key-term">n-step TD methods</span> generalize both so one can smoothly shift between them. n-step methods span a spectrum with MC at one end and one-step TD at the other. The best methods are often <span class="key-term">intermediate</span> between the two extremes.</div>
+<div class="cn">本章统一MC方法和单步TD方法。<span class="key-term">n步TD方法</span>泛化了两者，使人们可以平滑地在它们之间切换。n步方法构成了一个谱系，一端是MC，另一端是单步TD。最好的方法通常在两个极端之间<span class="key-term">取中间值</span>。</div>
+</div>
+
+<div class="spectrum">
+<div style="background:#e3f2fd; border:2px solid #1565c0;">1步TD<br><small>TD(0)</small></div>
+<div style="background:#e8f5e9;">2步TD</div>
+<div style="background:#fff3e0;">3步TD</div>
+<div style="background:#fce4ec;">···</div>
+<div style="background:#f3e5f5;">n步TD</div>
+<div style="background:#fce4ec;">···</div>
+<div style="background:#fff9c4; border:2px solid #f57f17;">∞步TD<br><small>= MC</small></div>
+</div>
+
+<div class="bilingual">
+<div class="en">n-step methods free you from the <span class="key-term">tyranny of the time step</span>. With one-step TD, the same time step determines how often actions change and the bootstrapping interval. n-step methods enable bootstrapping over multiple steps.</div>
+<div class="cn">n步方法将您从<span class="key-term">时间步的束缚</span>中解放出来。在单步TD中，同一时间步既决定了动作改变的频率，也决定了自举的间隔。n步方法允许跨多步进行自举。</div>
+</div>
+</div>
+
+<!-- 7.1 -->
+<div class="section" id="s1">
+<h3>7.1 n步TD预测 / n-step TD Prediction</h3>
+<div class="bilingual">
+<div class="en">MC uses the complete return G<sub>t</sub>. One-step TD uses G<sub>t:t+1</sub> = R<sub>t+1</sub> + γV(S<sub>t+1</sub>). The <span class="key-term">n-step return</span> interpolates between them:</div>
+<div class="cn">MC使用完整回报G<sub>t</sub>。单步TD使用G<sub>t:t+1</sub> = R<sub>t+1</sub> + γV(S<sub>t+1</sub>)。<span class="key-term">n步回报</span>在两者之间插值：</div>
+</div>
+<div class="formula">
+G<sub>t:t+n</sub> = R<sub>t+1</sub> + γR<sub>t+2</sub> + ··· + γ<sup>n-1</sup>R<sub>t+n</sub> + γ<sup>n</sup>V<sub>t+n-1</sub>(S<sub>t+n</sub>)
+</div>
+
+<div class="bilingual">
+<div class="en">The <span class="key-term">n-step TD</span> update is:</div>
+<div class="cn"><span class="key-term">n步TD</span>更新为：</div>
+</div>
+<div class="formula">
+V<sub>t+n</sub>(S<sub>t</sub>) = V<sub>t+n-1</sub>(S<sub>t</sub>) + α [ G<sub>t:t+n</sub> − V<sub>t+n-1</sub>(S<sub>t</sub>) ]
+</div>
+
+<div class="note">
+<strong>💡 误差缩减性质：</strong>n步回报的期望保证比V<sub>t+n-1</sub>更好地估计v<sub>π</sub>（在最差状态意义上）：max|E[G<sub>t:t+n</sub>|S<sub>t</sub>=s] − v<sub>π</sub>(s)| ≤ γ<sup>n</sup> max|V<sub>t+n-1</sub>(s) − v<sub>π</sub>(s)|
+</div>
+
+<div class="bilingual">
+<div class="en"><strong>Example 7.1:</strong> On a 19-state random walk, n-step TD with intermediate n values (e.g., n=4 or 8) outperforms both one-step TD (n=1) and MC (n→∞), illustrating the benefit of intermediate bootstrapping.</div>
+<div class="cn"><strong>例7.1：</strong>在19状态随机游走中，中等n值的n步TD（如n=4或8）优于单步TD（n=1）和MC（n→∞），说明了中间自举的优势。</div>
+</div>
+</div>
+
+<!-- 7.2 -->
+<div class="section" id="s2">
+<h3>7.2 n步Sarsa</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">n-step Sarsa</span> extends Sarsa by switching states for state–action pairs. The n-step return for action values:</div>
+<div class="cn"><span class="key-term">n步Sarsa</span>通过将状态替换为状态-动作对来扩展Sarsa。动作价值的n步回报：</div>
+</div>
+<div class="formula">
+G<sub>t:t+n</sub> = R<sub>t+1</sub> + γR<sub>t+2</sub> + ··· + γ<sup>n-1</sup>R<sub>t+n</sub> + γ<sup>n</sup>Q<sub>t+n-1</sub>(S<sub>t+n</sub>, A<sub>t+n</sub>)
+</div>
+<div class="formula">
+Q<sub>t+n</sub>(S<sub>t</sub>, A<sub>t</sub>) = Q<sub>t+n-1</sub>(S<sub>t</sub>, A<sub>t</sub>) + α [ G<sub>t:t+n</sub> − Q<sub>t+n-1</sub>(S<sub>t</sub>, A<sub>t</sub>) ]
+</div>
+
+<div class="bilingual">
+<div class="en"><strong>Figure 7.4</strong> shows that one-step Sarsa only strengthens the last action before a high reward, while n-step Sarsa strengthens the last n actions — dramatically speeding up learning from a single episode.</div>
+<div class="cn"><strong>图7.4</strong>显示，单步Sarsa仅强化高奖励前的最后一个动作，而n步Sarsa强化最后n个动作——从单个回合中学习的速度显著提高。</div>
+</div>
+
+<div class="bilingual">
+<div class="en"><strong>n-step Expected Sarsa</strong> replaces the last state–action pair with a branch over all actions weighted by π, using V̄<sub>t</sub>(s) = Σ<sub>a</sub> π(a|s)Q<sub>t</sub>(s,a).</div>
+<div class="cn"><strong>n步Expected Sarsa</strong>将最后一个状态-动作对替换为由π加权的所有动作分支，使用V̄<sub>t</sub>(s) = Σ<sub>a</sub> π(a|s)Q<sub>t</sub>(s,a)。</div>
+</div>
+</div>
+
+<!-- 7.3 -->
+<div class="section" id="s3">
+<h3>7.3 n步Off-policy学习 / n-step Off-policy Learning</h3>
+<div class="bilingual">
+<div class="en">For off-policy n-step methods, we weight returns by the <span class="key-term">importance sampling ratio</span> ρ<sub>t:h</sub> for the n actions from A<sub>t</sub> to A<sub>h</sub>:</div>
+<div class="cn">对于off-policy n步方法，我们用从A<sub>t</sub>到A<sub>h</sub>的n个动作的<span class="key-term">重要性采样比率</span>ρ<sub>t:h</sub>来加权回报：</div>
+</div>
+<div class="formula">
+ρ<sub>t:h</sub> = ∏<sub>k=t</sub><sup>min(h,T-1)</sup> π(A<sub>k</sub>|S<sub>k</sub>) / b(A<sub>k</sub>|S<sub>k</sub>)
+</div>
+<div class="bilingual">
+<div class="en">For n-step TD prediction: V(S<sub>t</sub>) ← V(S<sub>t</sub>) + αρ<sub>t:t+n-1</sub>[G<sub>t:t+n</sub> − V(S<sub>t</sub>)]. For n-step Sarsa control: Q(S<sub>t</sub>,A<sub>t</sub>) ← Q(S<sub>t</sub>,A<sub>t</sub>) + αρ<sub>t+1:t+n</sub>[G<sub>t:t+n</sub> − Q(S<sub>t</sub>,A<sub>t</sub>)]. Note the ratio starts one step later for action values.</div>
+<div class="cn">对于n步TD预测：V(S<sub>t</sub>) ← V(S<sub>t</sub>) + αρ<sub>t:t+n-1</sub>[G<sub>t:t+n</sub> − V(S<sub>t</sub>)]。对于n步Sarsa控制：Q(S<sub>t</sub>,A<sub>t</sub>) ← Q(S<sub>t</sub>,A<sub>t</sub>) + αρ<sub>t+1:t+n</sub>[G<sub>t:t+n</sub> − Q(S<sub>t</sub>,A<sub>t</sub>)]。注意对于动作价值，比率晚一步开始。</div>
+</div>
+</div>
+
+<!-- 7.4 -->
+<div class="section" id="s4">
+<h3>7.4 *逐决策方法与控制变量 / Per-decision Methods with Control Variates</h3>
+<div class="bilingual">
+<div class="en">A more sophisticated off-policy approach uses <span class="key-term">per-decision importance sampling</span> with <span class="key-term">control variates</span>. The n-step return is defined recursively:</div>
+<div class="cn">更复杂的off-policy方法使用<span class="key-term">逐决策重要性采样</span>配合<span class="key-term">控制变量</span>。n步回报递归定义为：</div>
+</div>
+<div class="formula">
+G<sub>t:h</sub> = ρ<sub>t</sub>(R<sub>t+1</sub> + γG<sub>t+1:h</sub>) + (1 − ρ<sub>t</sub>)V<sub>h-1</sub>(S<sub>t</sub>)
+</div>
+<div class="bilingual">
+<div class="en">If ρ<sub>t</sub>=0 (action never selected by π), the target equals the current estimate (no update), rather than zero (which would shrink the estimate). The <span class="key-term">control variate</span> (1−ρ<sub>t</sub>)V<sub>h-1</sub>(S<sub>t</sub>) doesn't change the expected update but reduces variance.</div>
+<div class="cn">如果ρ<sub>t</sub>=0（π永远不会选择的动作），目标等于当前估计（不更新），而非零（会缩小估计）。<span class="key-term">控制变量</span>(1−ρ<sub>t</sub>)V<sub>h-1</sub>(S<sub>t</sub>)不改变期望更新，但减少了方差。</div>
+</div>
+</div>
+
+<!-- 7.5 -->
+<div class="section" id="s5">
+<h3>7.5 无重要性采样的Off-policy：n步树备份 / Tree Backup Algorithm</h3>
+<div class="bilingual">
+<div class="en">The <span class="key-term">tree-backup algorithm</span> enables off-policy learning without importance sampling. The target includes the estimated values of all "dangling" action nodes not selected, weighted by their probability under π.</div>
+<div class="cn"><span class="key-term">树备份算法</span>实现了无需重要性采样的off-policy学习。目标包含所有未被选择的"悬空"动作节点的估计值，按其π概率加权。</div>
+</div>
+<div class="formula">
+G<sub>t:t+n</sub> = R<sub>t+1</sub> + γ Σ<sub>a≠A<sub>t+1</sub></sub> π(a|S<sub>t+1</sub>)Q(S<sub>t+1</sub>,a) + γπ(A<sub>t+1</sub>|S<sub>t+1</sub>)G<sub>t+1:t+n</sub>
+</div>
+<div class="bilingual">
+<div class="en">The tree backup can be viewed as alternating sample half-steps and expected half-steps. It generalizes Q-learning to multi-step with stochastic target policies. However, if π is substantially different from b, bootstrapping may span only a few steps even if n is large (because π(A<sub>k</sub>|S<sub>k</sub>) can be small).</div>
+<div class="cn">树备份可以看作交替的采样半步和期望半步。它将Q-learning泛化到具有随机目标策略的多步情况。然而，如果π与b差异很大，即使n很大，自举可能只跨几步（因为π(A<sub>k</sub>|S<sub>k</sub>)可能很小）。</div>
+</div>
+</div>
+
+<!-- 7.6 -->
+<div class="section" id="s6">
+<h3>7.6 *统一算法：n步Q(σ) / n-step Q(σ)</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">n-step Q(σ)</span> unifies Sarsa, tree-backup, and Expected Sarsa by introducing a parameter σ<sub>t</sub> ∈ [0,1] that controls the degree of sampling vs. expectation on each step:</div>
+<div class="cn"><span class="key-term">n步Q(σ)</span>通过引入参数σ<sub>t</sub> ∈ [0,1]来统一Sarsa、树备份和Expected Sarsa，控制每一步的采样与期望程度：</div>
+</div>
+<div class="formula">
+G<sub>t:h</sub> = R<sub>t+1</sub> + γ [ σ<sub>t+1</sub>ρ<sub>t+1</sub> + (1−σ<sub>t+1</sub>)π(A<sub>t+1</sub>|S<sub>t+1</sub>) ] [ G<sub>t+1:h</sub> − Q(S<sub>t+1</sub>,A<sub>t+1</sub>) ] + γV̄(S<sub>t+1</sub>)
+</div>
+<div class="bilingual">
+<div class="en">σ=1 → Sarsa (full sampling), σ=0 → tree backup (pure expectation), Expected Sarsa → σ=1 for all steps except the last (σ=0).</div>
+<div class="cn">σ=1 → Sarsa（完全采样），σ=0 → 树备份（纯期望），Expected Sarsa → 除最后一步（σ=0）外所有步骤σ=1。</div>
+</div>
+</div>
+
+<!-- 7.7 Summary -->
+<div class="section" id="s7">
+<h3>7.7 小结 / Summary</h3>
+<div class="bilingual">
+<div class="en">n-step methods with intermediate bootstrapping typically outperform both extremes (1-step TD and MC). They involve a delay of n steps before updating and require more memory/computation. Two off-policy approaches: (1) importance sampling (high variance), (2) tree backup (no IS but limited effective horizon). In Chapter 12, eligibility traces will implement multi-step TD with minimal overhead.</div>
+<div class="cn">具有中间自举的n步方法通常优于两个极端（1步TD和MC）。它们需要n步延迟才能更新，并需要更多内存/计算。两种off-policy方法：(1) 重要性采样（高方差），(2) 树备份（无IS但有效视野有限）。在第12章，资格迹将以最小开销实现多步TD。</div>
+</div>
+
+<h4 style="margin-top:20px; color:var(--accent);">核心概念速查 / Key Concepts</h4>
+<table class="summary">
+<tr><th>术语 / Term</th><th>英文 / English</th><th>含义 / Meaning</th></tr>
+<tr><td>n步回报</td><td>n-step Return</td><td>n个真实奖励+折扣的n步后估计值</td></tr>
+<tr><td>n步TD</td><td>n-step TD</td><td>使用n步回报更新状态价值</td></tr>
+<tr><td>n步Sarsa</td><td>n-step Sarsa</td><td>使用n步回报更新动作价值（on-policy）</td></tr>
+<tr><td>误差缩减</td><td>Error Reduction Property</td><td>n步回报期望误差 ≤ γ<sup>n</sup> × 估计值误差</td></tr>
+<tr><td>控制变量</td><td>Control Variate</td><td>(1-ρ)V项，减少off-policy方差但不改变期望</td></tr>
+<tr><td>树备份</td><td>Tree Backup</td><td>无需重要性采样的off-policy n步方法</td></tr>
+<tr><td>Q(σ)</td><td>Q(σ)</td><td>统一Sarsa/树备份/Expected Sarsa的参数化算法</td></tr>
+</table>
+</div>
+
+</div>
+</body>
+</html>

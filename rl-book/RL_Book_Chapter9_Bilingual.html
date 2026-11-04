@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 9: On-policy Prediction with Approximation | 第九章：近似方法的On-policy预测</title>
+<style>
+:root { --accent: #283593; --accent-light: #e8eaf6; --highlight: #fff59d; --bg: #f5f7fa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: #333; line-height: 1.8; }
+.hero { background: linear-gradient(135deg, #1a237e, #283593, #3949ab); color: white; padding: 60px 20px; text-align: center; }
+.hero h1 { font-size: 2.2em; margin-bottom: 10px; }
+.hero h2 { font-size: 1.5em; font-weight: 300; opacity: 0.9; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.toc { background: white; border-radius: 12px; padding: 30px; margin: 30px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.toc h3 { color: var(--accent); margin-bottom: 15px; }
+.toc ul { list-style: none; columns: 2; }
+.toc li { padding: 5px 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.section { background: white; border-radius: 12px; padding: 30px; margin: 25px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.section h3 { color: var(--accent); font-size: 1.5em; margin-bottom: 20px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }
+.bilingual { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0; }
+.en { border-left: 4px solid var(--accent); background: var(--accent-light); padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.cn { border-left: 4px solid #e74c3c; background: #fdf5f3; padding: 15px 20px; border-radius: 0 8px 8px 0; }
+.key-term { background: var(--highlight); padding: 1px 6px; font-weight: 600; border-radius: 3px; }
+.formula { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0; text-align: center; font-family: 'Cambria Math', serif; font-size: 1.05em; overflow-x: auto; }
+.pseudo { background: #1e1e2e; color: #cdd6f4; padding: 20px; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.88em; line-height: 1.6; margin: 15px 0; overflow-x: auto; white-space: pre-wrap; }
+.note { background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+.note-warn { background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 15px 0; }
+table.summary { width: 100%; border-collapse: collapse; margin: 15px 0; }
+table.summary th { background: var(--accent); color: white; padding: 12px 15px; text-align: left; }
+table.summary td { padding: 10px 15px; border-bottom: 1px solid #e0e0e0; }
+table.summary tr:nth-child(even) { background: #f8f9fa; }
+@media (max-width: 768px) { .bilingual { grid-template-columns: 1fr; } .toc ul { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>Chapter 9: On-policy Prediction with Approximation</h1>
+<h2>第九章：近似方法的On-policy预测</h2>
+</div>
+<div class="container">
+
+<div class="toc">
+<h3>📑 目录 / Table of Contents</h3>
+<ul>
+<li><a href="#s1">9.1 价值函数近似 / Value-function Approximation</a></li>
+<li><a href="#s2">9.2 预测目标 VE / The Prediction Objective</a></li>
+<li><a href="#s3">9.3 随机梯度与半梯度方法</a></li>
+<li><a href="#s4">9.4 线性方法 / Linear Methods</a></li>
+<li><a href="#s5">9.5 特征构造 / Feature Construction</a></li>
+<li><a href="#s6">9.6 步长参数的手动选择</a></li>
+<li><a href="#s7">9.7 非线性函数近似：人工神经网络</a></li>
+<li><a href="#s8">9.8 最小二乘TD / Least-Squares TD</a></li>
+<li><a href="#s9">9.9 基于记忆的函数近似</a></li>
+<li><a href="#s10">9.10 基于核的函数近似</a></li>
+<li><a href="#s11">9.11 Interest与Emphasis</a></li>
+<li><a href="#s12">9.12 小结 / Summary</a></li>
+</ul>
+</div>
+
+<!-- 引言 -->
+<div class="section">
+<h3>引言 / Introduction</h3>
+<div class="bilingual">
+<div class="en">This chapter begins our study of <span class="key-term">function approximation</span> in reinforcement learning. The approximate value function is represented not as a table but as a <span class="key-term">parameterized functional form</span> with weight vector <b>w</b> ∈ ℝ<sup>d</sup>. We write v̂(s,<b>w</b>) ≈ v<sub>π</sub>(s). Typically, the number of weights is much less than the number of states (d ≪ |S|), so changing one weight changes the estimated value of many states — such <span class="key-term">generalization</span> makes learning potentially more powerful but also more difficult.</div>
+<div class="cn">本章开始研究强化学习中的<span class="key-term">函数近似</span>。近似价值函数不再用表格表示，而是用带有权重向量<b>w</b>∈ℝ<sup>d</sup>的<span class="key-term">参数化函数形式</span>表示。我们记v̂(s,<b>w</b>)≈v<sub>π</sub>(s)。通常权重的数量远少于状态数（d≪|S|），改变一个权重会影响许多状态的估计值——这种<span class="key-term">泛化</span>使学习更强大但也更难管理。</div>
+</div>
+<div class="bilingual">
+<div class="en">Perhaps surprisingly, extending RL to function approximation also makes it applicable to <span class="key-term">partially observable problems</span>, in which the full state is not available to the agent. If v̂ does not allow the estimate to depend on certain aspects of the state, it is as if those aspects are unobservable.</div>
+<div class="cn">也许令人惊讶的是，将RL扩展到函数近似也使其适用于<span class="key-term">部分可观测问题</span>，即智能体无法获得完整状态的情况。如果v̂的估计不依赖于状态的某些方面，那么这些方面就好像是不可观测的。</div>
+</div>
+</div>
+
+<!-- 9.1 -->
+<div class="section" id="s1">
+<h3>9.1 价值函数近似 / Value-function Approximation</h3>
+<div class="bilingual">
+<div class="en">All prediction methods are described as updates to an estimated value function that shift its value at a particular state toward an <span class="key-term">update target</span> <i>u</i>. For example:
+<ul style="margin-top:10px;">
+<li>Monte Carlo: S<sub>t</sub> → G<sub>t</sub></li>
+<li>TD(0): S<sub>t</sub> → R<sub>t+1</sub> + γv̂(S<sub>t+1</sub>, <b>w</b><sub>t</sub>)</li>
+<li>n-step TD: S<sub>t</sub> → G<sub>t:t+n</sub></li>
+</ul>
+Each update s → <i>u</i> can be interpreted as specifying a training example of the desired input–output behavior. Machine learning methods that learn to mimic such examples are called <span class="key-term">supervised learning</span>, and when outputs are numbers, the process is called <span class="key-term">function approximation</span>.</div>
+<div class="cn">所有预测方法都被描述为对估计价值函数的更新，将某状态的值移向<span class="key-term">更新目标</span><i>u</i>。例如：
+<ul style="margin-top:10px;">
+<li>蒙特卡洛：S<sub>t</sub> → G<sub>t</sub></li>
+<li>TD(0)：S<sub>t</sub> → R<sub>t+1</sub> + γv̂(S<sub>t+1</sub>, <b>w</b><sub>t</sub>)</li>
+<li>n步TD：S<sub>t</sub> → G<sub>t:t+n</sub></li>
+</ul>
+每次更新s→<i>u</i>可以解释为指定期望输入-输出行为的训练样本。学习模仿这类样本的机器学习方法称为<span class="key-term">监督学习</span>，当输出是数字时，该过程称为<span class="key-term">函数近似</span>。</div>
+</div>
+<div class="bilingual">
+<div class="en">Not all function approximation methods are equally suited for RL. Methods must handle: (1) <b>online learning</b> from incrementally acquired data, and (2) <b>nonstationary target functions</b> that change over time (e.g., due to policy changes or bootstrapping).</div>
+<div class="cn">并非所有函数近似方法都同样适合RL。方法必须能够处理：(1)从增量获取的数据中进行<b>在线学习</b>，(2)随时间变化的<b>非平稳目标函数</b>（如策略变化或自举导致）。</div>
+</div>
+</div>
+
+<!-- 9.2 -->
+<div class="section" id="s2">
+<h3>9.2 预测目标 VE / The Prediction Objective</h3>
+<div class="bilingual">
+<div class="en">With function approximation, we cannot get all state values exactly correct. We must specify a <span class="key-term">state distribution</span> µ(s) ≥ 0 representing how much we care about the error in each state. This yields the <span class="key-term">Mean Squared Value Error</span>:</div>
+<div class="cn">在函数近似下，无法让所有状态值完全正确。必须指定一个<span class="key-term">状态分布</span>µ(s)≥0来表示我们对每个状态误差的关注程度。由此得到<span class="key-term">均方价值误差</span>：</div>
+</div>
+<div class="formula">
+V<b>E</b>(<b>w</b>) = Σ<sub>s∈S</sub> µ(s) [v<sub>π</sub>(s) − v̂(s,<b>w</b>)]<sup>2</sup>
+</div>
+<div class="bilingual">
+<div class="en">Often µ(s) is chosen to be the fraction of time spent in s — the <span class="key-term">on-policy distribution</span>. In continuing tasks, this is the stationary distribution under π. In episodic tasks, it depends on both the initial-state distribution h(s) and the expected number of visits η(s).</div>
+<div class="cn">通常µ(s)选为在s中停留的时间比例——即<span class="key-term">on-policy分布</span>。在持续性任务中，这是π下的平稳分布。在回合制任务中，它取决于初始状态分布h(s)和期望访问次数η(s)。</div>
+</div>
+<div class="bilingual">
+<div class="en">The ideal goal would be to find a <span class="key-term">global optimum</span> <b>w</b>* for which VE(<b>w</b>*) ≤ VE(<b>w</b>) for all <b>w</b>. This is sometimes possible for linear approximators, but rarely for complex ones like ANNs. Short of this, complex approximators seek a <span class="key-term">local optimum</span>. Some methods may even <b>diverge</b>, with VE approaching infinity.</div>
+<div class="cn">理想目标是找到<span class="key-term">全局最优</span><b>w</b>*使得对所有<b>w</b>都有VE(<b>w</b>*)≤VE(<b>w</b>)。线性近似器有时可以做到，但神经网络等复杂近似器很少能做到。退而求其次，复杂近似器追求<span class="key-term">局部最优</span>。一些方法甚至可能<b>发散</b>，VE趋向无穷大。</div>
+</div>
+</div>
+
+<!-- 9.3 -->
+<div class="section" id="s3">
+<h3>9.3 随机梯度与半梯度方法 / SGD & Semi-gradient Methods</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Stochastic Gradient Descent (SGD)</span> adjusts the weight vector after each example by a small amount in the direction that most reduces the error on that example:</div>
+<div class="cn"><span class="key-term">随机梯度下降（SGD）</span>在每次样本之后，沿最快速减少该样本误差的方向调整权重向量一小步：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + α [U<sub>t</sub> − v̂(S<sub>t</sub>,<b>w</b><sub>t</sub>)] ∇v̂(S<sub>t</sub>,<b>w</b><sub>t</sub>)
+</div>
+<div class="bilingual">
+<div class="en">If U<sub>t</sub> is an <b>unbiased estimate</b> of v<sub>π</sub>(S<sub>t</sub>) (e.g., G<sub>t</sub> from Monte Carlo), then SGD converges to a local optimum under standard conditions.</div>
+<div class="cn">如果U<sub>t</sub>是v<sub>π</sub>(S<sub>t</sub>)的<b>无偏估计</b>（如MC的G<sub>t</sub>），则SGD在标准条件下收敛到局部最优。</div>
+</div>
+
+<div class="pseudo">Gradient Monte Carlo Algorithm for Estimating v̂ ≈ v<sub>π</sub>
+────────────────────────────────────────────
+Input: the policy π to be evaluated
+Input: a differentiable function v̂: S × ℝ<sup>d</sup> → ℝ
+Algorithm parameter: step size α > 0
+Initialize weights w ∈ ℝ<sup>d</sup> arbitrarily (e.g., w = 0)
+
+Loop forever (for each episode):
+    Generate episode S₀, A₀, R₁, ..., R<sub>T</sub>, S<sub>T</sub> using π
+    Loop for each step t = 0, 1, ..., T−1:
+        w ← w + α [G<sub>t</sub> − v̂(S<sub>t</sub>, w)] ∇v̂(S<sub>t</sub>, w)</div>
+
+<div class="bilingual">
+<div class="en"><b>Bootstrapping targets</b> such as G<sub>t:t+n</sub> or DP targets depend on <b>w</b><sub>t</sub>, making them <b>biased</b>. They include only part of the gradient, so we call them <span class="key-term">semi-gradient methods</span>. Though less robust in convergence, they offer: (1) significantly <b>faster learning</b>, and (2) <b>continual online</b> learning without waiting for episode end.</div>
+<div class="cn"><b>自举目标</b>如G<sub>t:t+n</sub>或DP目标依赖于<b>w</b><sub>t</sub>，使其具有<b>偏差</b>。它们只包含部分梯度，因此称为<span class="key-term">半梯度方法</span>。虽然收敛性不够鲁棒，但它们具有：(1)显著<b>更快的学习</b>，(2)无需等待回合结束的<b>持续在线</b>学习。</div>
+</div>
+
+<div class="pseudo">Semi-gradient TD(0) for Estimating v̂ ≈ v<sub>π</sub>
+────────────────────────────────────────────
+Input: policy π to be evaluated
+Input: differentiable function v̂: S<sup>+</sup> × ℝ<sup>d</sup> → ℝ, v̂(terminal,·) = 0
+Algorithm parameter: step size α > 0
+Initialize weights w arbitrarily (e.g., w = 0)
+
+Loop for each episode:
+    Initialize S
+    Loop for each step:
+        Choose A ~ π(·|S)
+        Take action A, observe R, S'
+        w ← w + α [R + γv̂(S', w) − v̂(S, w)] ∇v̂(S, w)
+        S ← S'
+    until S is terminal</div>
+
+<div class="bilingual">
+<div class="en"><strong>Example 9.1: State Aggregation on 1000-state Random Walk.</strong> 1000 states are partitioned into 10 groups of 100 states each. State aggregation is a special case of SGD where the gradient is 1 for S<sub>t</sub>'s group component and 0 for others. The learned values show a staircase pattern — constant within each group, changing abruptly between groups.</div>
+<div class="cn"><strong>例9.1：1000状态随机游走上的状态聚合。</strong>1000个状态被划分为10组，每组100个状态。状态聚合是SGD的特例，梯度在S<sub>t</sub>所在组的分量为1，其他为0。学到的值呈阶梯模式——组内恒定，组间突变。</div>
+</div>
+</div>
+
+<!-- 9.4 -->
+<div class="section" id="s4">
+<h3>9.4 线性方法 / Linear Methods</h3>
+<div class="bilingual">
+<div class="en">The approximate function is a <span class="key-term">linear function of the weight vector</span>. For each state s, there is a <span class="key-term">feature vector</span> <b>x</b>(s) = (x<sub>1</sub>(s), ..., x<sub>d</sub>(s))<sup>T</sup>:</div>
+<div class="cn">近似函数是<span class="key-term">权重向量的线性函数</span>。对于每个状态s，有一个<span class="key-term">特征向量</span><b>x</b>(s)=(x<sub>1</sub>(s),...,x<sub>d</sub>(s))<sup>T</sup>：</div>
+</div>
+<div class="formula">
+v̂(s,<b>w</b>) = <b>w</b><sup>T</sup><b>x</b>(s) = Σ<sub>i=1</sub><sup>d</sup> w<sub>i</sub> x<sub>i</sub>(s)
+</div>
+<div class="bilingual">
+<div class="en">The gradient simplifies to ∇v̂(s,<b>w</b>) = <b>x</b>(s), giving the simple SGD update: <b>w</b><sub>t+1</sub> = <b>w</b><sub>t</sub> + α[U<sub>t</sub> − v̂(S<sub>t</sub>,<b>w</b><sub>t</sub>)]<b>x</b>(S<sub>t</sub>). In the linear case there is <b>only one optimum</b>, so convergence to the global optimum is guaranteed.</div>
+<div class="cn">梯度简化为∇v̂(s,<b>w</b>)=<b>x</b>(s)，得到简洁的SGD更新：<b>w</b><sub>t+1</sub>=<b>w</b><sub>t</sub>+α[U<sub>t</sub>−v̂(S<sub>t</sub>,<b>w</b><sub>t</sub>)]<b>x</b>(S<sub>t</sub>)。线性情况下<b>只有一个最优解</b>，因此保证收敛到全局最优。</div>
+</div>
+<div class="bilingual">
+<div class="en"><b>Semi-gradient TD(0)</b> with linear function approximation converges to the <span class="key-term">TD fixed point</span>:</div>
+<div class="cn">线性函数近似的<b>半梯度TD(0)</b>收敛到<span class="key-term">TD不动点</span>：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>TD</sub> = <b>A</b><sup>−1</sup><b>b</b>, where <b>A</b> = E[<b>x</b><sub>t</sub>(<b>x</b><sub>t</sub> − γ<b>x</b><sub>t+1</sub>)<sup>T</sup>], <b>b</b> = E[R<sub>t+1</sub><b>x</b><sub>t</sub>]
+</div>
+<div class="note">
+<strong>💡 收敛证明要点：</strong>矩阵<b>A</b>是正定的（y<sup>T</sup>Ay>0），这保证了收敛性和A<sup>−1</sup>的存在性。关键在于平稳分布µ和策略π下的转移矩阵P使得D(I−γP)正定。
+</div>
+<div class="bilingual">
+<div class="en">At the TD fixed point, the VE is bounded:</div>
+<div class="cn">在TD不动点处，VE有界：</div>
+</div>
+<div class="formula">
+VE(<b>w</b><sub>TD</sub>) ≤ <sup>1</sup>⁄<sub>(1−γ)</sub> min<sub><b>w</b></sub> VE(<b>w</b>)
+</div>
+<div class="bilingual">
+<div class="en">The asymptotic error of TD is no more than 1/(1−γ) times the smallest possible error (attained by MC). Because γ is often near 1, this factor can be large, but TD methods have vastly <b>reduced variance</b> and are often faster.</div>
+<div class="cn">TD的渐近误差不超过MC可达到的最小误差的1/(1−γ)倍。由于γ通常接近1，该因子可能很大，但TD方法<b>方差显著降低</b>，通常更快。</div>
+</div>
+
+<div class="note-warn">
+<strong>⚠️ 关键警告：</strong>收敛的关键条件是状态按照<b>on-policy分布</b>更新。对于其他更新分布，带函数近似的自举方法实际上可能<b>发散到无穷大</b>（详见第11章）。
+</div>
+
+<div class="pseudo">n-step Semi-gradient TD for Estimating v̂ ≈ v<sub>π</sub>
+────────────────────────────────────────────
+Input: policy π, differentiable function v̂
+Parameters: step size α > 0, positive integer n
+Initialize weights w arbitrarily
+
+Loop for each episode:
+    Initialize and store S₀ ≠ terminal; T ← ∞
+    Loop for t = 0, 1, 2, ...:
+        If t < T: take action per π, observe R<sub>t+1</sub>, S<sub>t+1</sub>
+        τ ← t − n + 1
+        If τ ≥ 0:
+            G ← Σ γ<sup>i−τ−1</sup> R<sub>i</sub> (i = τ+1 to min(τ+n, T))
+            If τ+n < T: G ← G + γ<sup>n</sup> v̂(S<sub>τ+n</sub>, w)
+            w ← w + α [G − v̂(S<sub>τ</sub>, w)] ∇v̂(S<sub>τ</sub>, w)
+    Until τ = T − 1</div>
+</div>
+
+<!-- 9.5 -->
+<div class="section" id="s5">
+<h3>9.5 特征构造 / Feature Construction for Linear Methods</h3>
+<div class="bilingual">
+<div class="en">Whether linear methods are efficient depends critically on how states are represented as <span class="key-term">features</span>. Choosing features is an important way of adding <b>prior domain knowledge</b> to RL systems. A limitation of the linear form: it cannot capture <b>interactions between features</b> (e.g., feature i being good only in the absence of feature j).</div>
+<div class="cn">线性方法是否高效关键取决于如何将状态表示为<span class="key-term">特征</span>。选择特征是向RL系统添加<b>先验领域知识</b>的重要方式。线性形式的局限性：无法捕捉<b>特征间的交互</b>（如特征i仅在特征j不存在时才是好的）。</div>
+</div>
+
+<h4 style="color:var(--accent); margin: 20px 0 10px;">9.5.1 多项式 / Polynomials</h4>
+<div class="bilingual">
+<div class="en">For k-dimensional state space, each order-n polynomial feature is x<sub>i</sub>(s) = Π<sub>j=1</sub><sup>k</sup> s<sub>j</sub><sup>c<sub>i,j</sub></sup> where c<sub>i,j</sub> ∈ {0,1,...,n}. The order-n polynomial basis contains <b>(n+1)<sup>k</sup></b> features — exponential growth limits practical use. Not recommended for online RL learning.</div>
+<div class="cn">对于k维状态空间，每个n阶多项式特征为x<sub>i</sub>(s)=Π<sub>j=1</sub><sup>k</sup>s<sub>j</sub><sup>c<sub>i,j</sub></sup>，其中c<sub>i,j</sub>∈{0,1,...,n}。n阶多项式基包含<b>(n+1)<sup>k</sup></b>个特征——指数增长限制了实际应用。不推荐用于在线RL学习。</div>
+</div>
+
+<h4 style="color:var(--accent); margin: 20px 0 10px;">9.5.2 傅里叶基 / Fourier Basis</h4>
+<div class="bilingual">
+<div class="en">The order-n Fourier cosine basis for s ∈ [0,1]<sup>k</sup> uses features x<sub>i</sub>(s) = cos(π <b>s</b><sup>T</sup><b>c</b><sup>i</sup>), where each c<sub>j</sub><sup>i</sup> ∈ {0,...,n}. It defines (n+1)<sup>k</sup> features. Fourier features can produce good performance vs polynomial and RBF bases. A useful trick: use different step sizes α<sub>i</sub> = α/‖<b>c</b><sup>i</sup>‖ for each feature.</div>
+<div class="cn">对于s∈[0,1]<sup>k</sup>的n阶傅里叶余弦基使用特征x<sub>i</sub>(s)=cos(π<b>s</b><sup>T</sup><b>c</b><sup>i</sup>)，其中每个c<sub>j</sub><sup>i</sup>∈{0,...,n}。它定义(n+1)<sup>k</sup>个特征。傅里叶特征相比多项式和RBF基可产生良好性能。实用技巧：对每个特征使用不同步长α<sub>i</sub>=α/‖<b>c</b><sup>i</sup>‖。</div>
+</div>
+
+<h4 style="color:var(--accent); margin: 20px 0 10px;">9.5.3 粗编码 / Coarse Coding</h4>
+<div class="bilingual">
+<div class="en"><span class="key-term">Coarse coding</span> represents states with overlapping <b>binary features</b> (e.g., circles in state space). If state is inside a circle, the feature is 1 (present), otherwise 0 (absent). Generalization is controlled by the <b>size, density, and shape</b> of receptive fields. Wider features → broader initial generalization, but <b>final accuracy</b> is controlled more by the total number of features.</div>
+<div class="cn"><span class="key-term">粗编码</span>用重叠的<b>二值特征</b>（如状态空间中的圆）表示状态。如果状态在圆内，特征为1（存在），否则为0（不存在）。泛化由感受野的<b>大小、密度和形状</b>控制。更宽的特征→更广泛的初始泛化，但<b>最终精度</b>更多由特征总数控制。</div>
+</div>
+
+<h4 style="color:var(--accent); margin: 20px 0 10px;">9.5.4 瓦片编码 / Tile Coding</h4>
+<div class="bilingual">
+<div class="en"><span class="key-term">Tile coding</span> is a form of coarse coding for multi-dimensional continuous spaces that is flexible and computationally efficient. Key ideas:
+<ul style="margin-top:8px;">
+<li><b>Tiling</b>: a partition of state space (e.g., a grid)</li>
+<li><b>Multiple overlapping tilings</b> offset by fractions of a tile width</li>
+<li>Each state activates exactly <b>one tile per tiling</b> (n features total for n tilings)</li>
+<li>Use <b>α = 1/n</b> for one-trial learning, or <b>α = 1/(10n)</b> for gradual learning</li>
+<li><b>Asymmetric offsets</b> (e.g., displacement (1,3)) preferred over uniform offsets to avoid diagonal artifacts</li>
+<li><b>Hashing</b> reduces memory by randomly collapsing large tilings into smaller tile sets</li>
+</ul></div>
+<div class="cn"><span class="key-term">瓦片编码</span>是多维连续空间的粗编码形式，灵活且计算高效。核心思想：
+<ul style="margin-top:8px;">
+<li><b>瓦片集（Tiling）</b>：状态空间的一个划分（如网格）</li>
+<li><b>多个重叠瓦片集</b>，以瓦片宽度的分数偏移</li>
+<li>每个状态在<b>每个瓦片集中恰好激活一个瓦片</b>（n个瓦片集共n个特征）</li>
+<li>用<b>α=1/n</b>实现一次学习，或<b>α=1/(10n)</b>实现渐进学习</li>
+<li><b>非对称偏移</b>（如位移(1,3)）优于均匀偏移，避免对角线伪影</li>
+<li><b>哈希</b>通过随机将大瓦片集折叠为小瓦片集来减少内存</li>
+</ul></div>
+</div>
+
+<h4 style="color:var(--accent); margin: 20px 0 10px;">9.5.5 径向基函数 / Radial Basis Functions</h4>
+<div class="bilingual">
+<div class="en"><span class="key-term">RBF</span> features have Gaussian response: x<sub>i</sub>(s) = exp(−‖s − <b>c</b><sub>i</sub>‖<sup>2</sup> / 2σ<sub>i</sub><sup>2</sup>). They produce <b>smooth, differentiable</b> approximate functions. Primary advantage over binary features is smoothness. In high dimensions, tile coding edges are more important and RBFs become harder to control. RBF networks that also adjust centers/widths are <b>nonlinear</b> approximators with greater complexity.</div>
+<div class="cn"><span class="key-term">RBF</span>特征具有高斯响应：x<sub>i</sub>(s)=exp(−‖s−<b>c</b><sub>i</sub>‖<sup>2</sup>/2σ<sub>i</sub><sup>2</sup>)。它们产生<b>平滑、可微</b>的近似函数。相比二值特征的主要优势是平滑性。在高维空间中，瓦片编码的边缘更重要，RBF变得更难控制。同时调整中心/宽度的RBF网络是<b>非线性</b>近似器，复杂度更高。</div>
+</div>
+</div>
+
+<!-- 9.6 -->
+<div class="section" id="s6">
+<h3>9.6 步长参数的手动选择 / Selecting Step-Size Parameters</h3>
+<div class="bilingual">
+<div class="en">A useful rule of thumb for linear SGD: if you want to learn in about τ experiences with substantially the same feature vector:</div>
+<div class="cn">线性SGD步长选择的实用经验法则：如果你希望在大约τ次大致相同特征向量的经验后学习：</div>
+</div>
+<div class="formula">
+α ≈ ( τ · E[<b>x</b><sup>T</sup><b>x</b>] )<sup>−1</sup>
+</div>
+<div class="bilingual">
+<div class="en">In the tabular case, α = 1/τ means the estimate approaches the mean target after about τ experiences. For tile coding with n tilings and binary features, <b>x</b><sup>T</sup><b>x</b> = n (constant), so α = 1/(τn).</div>
+<div class="cn">在表格情况下，α=1/τ意味着估计在约τ次经验后接近平均目标。对于n个瓦片集和二进制特征的瓦片编码，<b>x</b><sup>T</sup><b>x</b>=n（常数），所以α=1/(τn)。</div>
+</div>
+</div>
+
+<!-- 9.7 -->
+<div class="section" id="s7">
+<h3>9.7 非线性函数近似：人工神经网络 / ANNs</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Artificial Neural Networks (ANNs)</span> are widely used for nonlinear function approximation. A feedforward ANN has input layer, hidden layers, and output layer. Each unit computes a weighted sum then applies an <span class="key-term">activation function</span> (sigmoid, ReLU, etc.).</div>
+<div class="cn"><span class="key-term">人工神经网络（ANN）</span>广泛用于非线性函数近似。前馈ANN有输入层、隐藏层和输出层。每个单元计算加权和然后应用<span class="key-term">激活函数</span>（sigmoid、ReLU等）。</div>
+</div>
+<div class="bilingual">
+<div class="en"><b>Universal Approximation Theorem</b> (Cybenko, 1989): An ANN with a single hidden layer containing enough sigmoid units can approximate any continuous function on a compact region to any accuracy. However, <b>deep architectures</b> (many hidden layers) are often needed for complex AI tasks — they create hierarchical abstractions.</div>
+<div class="cn"><b>万能近似定理</b>（Cybenko, 1989）：包含足够多sigmoid单元的单隐藏层ANN可以任意精度逼近紧区域上的任何连续函数。然而，复杂AI任务通常需要<b>深度架构</b>（多个隐藏层）——它们创建层次化抽象。</div>
+</div>
+<div class="bilingual">
+<div class="en">Key training techniques for deep ANNs:
+<ul style="margin-top:8px;">
+<li><b>Backpropagation</b>: alternating forward/backward passes to compute gradients</li>
+<li><b>Dropout</b>: randomly removing units during training to prevent overfitting</li>
+<li><b>Batch normalization</b>: normalizing between-layer signals using mini-batch statistics</li>
+<li><b>Deep residual learning</b>: skip connections that learn residual functions</li>
+<li><b>Deep convolutional networks</b>: specialized for spatial arrays (images), with shared-weight feature maps and subsampling layers</li>
+</ul></div>
+<div class="cn">深度ANN的关键训练技术：
+<ul style="margin-top:8px;">
+<li><b>反向传播</b>：交替前向/后向传播来计算梯度</li>
+<li><b>Dropout</b>：训练期间随机移除单元以防止过拟合</li>
+<li><b>批归一化</b>：使用小批量统计量归一化层间信号</li>
+<li><b>深度残差学习</b>：跳跃连接学习残差函数</li>
+<li><b>深度卷积网络</b>：专用于空间阵列（图像），具有共享权重特征图和子采样层</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 9.8 -->
+<div class="section" id="s8">
+<h3>9.8 最小二乘TD / Least-Squares TD (LSTD)</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">LSTD</span> is the most data-efficient form of linear TD(0). Instead of iterating, it directly estimates <b>A</b> and <b>b</b>, then computes <b>w</b><sub>TD</sub> = <b>Â</b><sup>−1</sup><b>b̂</b>:</div>
+<div class="cn"><span class="key-term">LSTD</span>是线性TD(0)最高数据效率的形式。它不迭代，而是直接估计<b>A</b>和<b>b</b>，然后计算<b>w</b><sub>TD</sub>=<b>Â</b><sup>−1</sup><b>b̂</b>：</div>
+</div>
+<div class="formula">
+<b>Â</b><sub>t</sub> = Σ<sub>k=0</sub><sup>t−1</sup> <b>x</b><sub>k</sub>(<b>x</b><sub>k</sub> − γ<b>x</b><sub>k+1</sub>)<sup>T</sup> + ε<b>I</b>,  <b>b̂</b><sub>t</sub> = Σ<sub>k=0</sub><sup>t−1</sup> R<sub>k+1</sub><b>x</b><sub>k</sub>
+</div>
+<div class="bilingual">
+<div class="en">Using the <span class="key-term">Sherman-Morrison formula</span>, the inverse can be maintained incrementally with O(d<sup>2</sup>) per-step computation. LSTD requires <b>no step-size parameter</b> (but needs ε > 0). Drawback: it <b>never forgets</b>, problematic when target policy changes in control.</div>
+<div class="cn">使用<span class="key-term">Sherman-Morrison公式</span>，可以以每步O(d<sup>2</sup>)的计算增量维护逆矩阵。LSTD<b>不需要步长参数</b>（但需要ε>0）。缺点：<b>永不遗忘</b>，在控制中目标策略变化时有问题。</div>
+</div>
+<div class="bilingual">
+<div class="en"><b>Complexity comparison:</b> Semi-gradient TD(0) = O(d) per step, LSTD = O(d<sup>2</sup>) per step. Whether LSTD's greater data efficiency is worth the computational cost depends on d, the importance of fast learning, and other system costs.</div>
+<div class="cn"><b>复杂度比较：</b>半梯度TD(0)=每步O(d)，LSTD=每步O(d<sup>2</sup>)。LSTD更高的数据效率是否值得计算成本取决于d、快速学习的重要性以及其他系统成本。</div>
+</div>
+</div>
+
+<!-- 9.9 -->
+<div class="section" id="s9">
+<h3>9.9 基于记忆的函数近似 / Memory-based Approximation</h3>
+<div class="bilingual">
+<div class="en"><span class="key-term">Memory-based methods</span> (nonparametric) simply save training examples in memory without updating parameters. When a query state's value is needed, relevant examples are retrieved and used to compute the estimate. This is called <span class="key-term">lazy learning</span>.</div>
+<div class="cn"><span class="key-term">基于记忆的方法</span>（非参数方法）仅将训练样本保存在记忆中而不更新参数。当需要查询状态的值时，检索相关样本并用于计算估计。这称为<span class="key-term">惰性学习</span>。</div>
+</div>
+<div class="bilingual">
+<div class="en">Types include:
+<ul style="margin-top:8px;">
+<li><b>Nearest neighbor</b>: return value of closest stored example</li>
+<li><b>Weighted average</b>: weighted average of nearest neighbors' targets</li>
+<li><b>Locally weighted regression</b>: fit a local surface using distance-weighted error</li>
+</ul>
+Advantages: no fixed functional form, accuracy improves with more data, focuses on local neighborhoods of visited states, avoids curse of dimensionality. Challenge: nearest-neighbor search can be slow — addressed by <b>k-d trees</b> and other data structures.</div>
+<div class="cn">类型包括：
+<ul style="margin-top:8px;">
+<li><b>最近邻</b>：返回最近存储样本的值</li>
+<li><b>加权平均</b>：最近邻目标的加权平均</li>
+<li><b>局部加权回归</b>：使用距离加权误差拟合局部曲面</li>
+</ul>
+优势：无固定函数形式，精度随数据增加而提高，聚焦于访问状态的局部邻域，避免维度灾难。挑战：最近邻搜索可能很慢——通过<b>k-d树</b>等数据结构解决。</div>
+</div>
+</div>
+
+<!-- 9.10 -->
+<div class="section" id="s10">
+<h3>9.10 基于核的函数近似 / Kernel-based Approximation</h3>
+<div class="bilingual">
+<div class="en">A <span class="key-term">kernel function</span> k(s, s') measures the strength of generalization from s' to s. <span class="key-term">Kernel regression</span> computes a kernel-weighted average of all stored targets:</div>
+<div class="cn"><span class="key-term">核函数</span>k(s,s')衡量从s'到s的泛化强度。<span class="key-term">核回归</span>计算所有存储目标的核加权平均：</div>
+</div>
+<div class="formula">
+v̂(s, D) = Σ<sub>s'∈D</sub> k(s, s') g(s')
+</div>
+<div class="bilingual">
+<div class="en">Any linear parametric method with features <b>x</b>(s) can be recast as kernel regression with k(s,s') = <b>x</b>(s)<sup>T</sup><b>x</b>(s'). The <span class="key-term">kernel trick</span>: for many feature sets, k(s,s') has a compact form computable without working in the d-dimensional feature space — enabling efficient computation in high-dimensional feature spaces.</div>
+<div class="cn">任何带特征<b>x</b>(s)的线性参数方法都可以转化为核回归，其中k(s,s')=<b>x</b>(s)<sup>T</sup><b>x</b>(s')。<span class="key-term">核技巧</span>：对于许多特征集，k(s,s')有紧凑形式，无需在d维特征空间中计算——从而在高维特征空间中实现高效计算。</div>
+</div>
+</div>
+
+<!-- 9.11 -->
+<div class="section" id="s11">
+<h3>9.11 Interest与Emphasis / Looking Deeper at On-policy Learning</h3>
+<div class="bilingual">
+<div class="en">So far all encountered states were treated equally. We now introduce <span class="key-term">interest</span> I<sub>t</sub> ≥ 0 — how much we care about accurately valuing the state at time t — and <span class="key-term">emphasis</span> M<sub>t</sub> ≥ 0 which multiplies the update:</div>
+<div class="cn">到目前为止，所有遇到的状态被平等对待。现在引入<span class="key-term">interest</span> I<sub>t</sub>≥0——我们对准确评估t时刻状态的关注程度——以及乘以更新量的<span class="key-term">emphasis</span> M<sub>t</sub>≥0：</div>
+</div>
+<div class="formula">
+<b>w</b><sub>t+n</sub> = <b>w</b><sub>t+n−1</sub> + α M<sub>t</sub> [G<sub>t:t+n</sub> − v̂(S<sub>t</sub>, <b>w</b><sub>t+n−1</sub>)] ∇v̂(S<sub>t</sub>, <b>w</b><sub>t+n−1</sub>)
+</div>
+<div class="formula">
+M<sub>t</sub> = I<sub>t</sub> + γ<sup>n</sup> M<sub>t−n</sub>, with M<sub>t</sub> = 0 for all t < 0
+</div>
+<div class="bilingual">
+<div class="en"><strong>Example 9.4:</strong> In a 4-state MRP (values 4,3,2,1), with 2 parameters (w<sub>1</sub>, w<sub>2</sub>), if we only care about the first state (I=1, others I=0), the interest/emphasis methods learn w<sub>1</sub>=4 (exactly correct!), while standard methods converge to w<sub>1</sub>=3.5.</div>
+<div class="cn"><strong>例9.4：</strong>在4状态MRP（值4,3,2,1）中，用2个参数(w<sub>1</sub>,w<sub>2</sub>)，如果我们只关心第一个状态（I=1，其他I=0），interest/emphasis方法学到w<sub>1</sub>=4（完全正确！），而标准方法收敛到w<sub>1</sub>=3.5。</div>
+</div>
+</div>
+
+<!-- 9.12 -->
+<div class="section" id="s12">
+<h3>9.12 小结 / Summary</h3>
+<div class="bilingual">
+<div class="en">RL systems must be capable of <b>generalization</b> for large-scale applications. Key takeaways:
+<ul style="margin-top:8px;">
+<li>The <span class="key-term">VE</span> measures approximation quality under the on-policy distribution</li>
+<li><span class="key-term">SGD</span> methods are most popular; <span class="key-term">n-step semi-gradient TD</span> is the natural algorithm</li>
+<li>Semi-gradient methods are not true gradient methods — bootstrapping targets depend on <b>w</b></li>
+<li><b>Linear methods</b> have best theoretical guarantees; <span class="key-term">feature construction</span> is critical</li>
+<li><b>Polynomials</b> generalize poorly; <b>Fourier basis</b> and <b>tile coding</b> are much better</li>
+<li><span class="key-term">LSTD</span> is most data-efficient but O(d<sup>2</sup>); others are O(d)</li>
+<li><b>Deep ANNs</b> (deep RL) enable hierarchical feature learning via backpropagation</li>
+<li><b>Memory-based</b> and <b>kernel-based</b> methods offer nonparametric alternatives</li>
+<li>Linear semi-gradient n-step TD converges for all n; higher n → tighter VE bound, but slower learning</li>
+</ul></div>
+<div class="cn">RL系统必须具备<b>泛化</b>能力才能应用于大规模场景。核心要点：
+<ul style="margin-top:8px;">
+<li><span class="key-term">VE</span>在on-policy分布下衡量近似质量</li>
+<li><span class="key-term">SGD</span>方法最流行；<span class="key-term">n步半梯度TD</span>是自然算法</li>
+<li>半梯度方法不是真正的梯度方法——自举目标依赖于<b>w</b></li>
+<li><b>线性方法</b>有最好的理论保证；<span class="key-term">特征构造</span>至关重要</li>
+<li><b>多项式</b>泛化差；<b>傅里叶基</b>和<b>瓦片编码</b>好得多</li>
+<li><span class="key-term">LSTD</span>数据效率最高但O(d<sup>2</sup>)；其他方法为O(d)</li>
+<li><b>深度ANN</b>（深度RL）通过反向传播实现层次化特征学习</li>
+<li><b>基于记忆</b>和<b>基于核</b>的方法提供非参数替代方案</li>
+<li>线性半梯度n步TD对所有n收敛；n越大→VE界越紧，但学习越慢</li>
+</ul></div>
+</div>
+</div>
+
+<!-- 核心概念速查表 -->
+<div class="section">
+<h3>📋 核心概念速查表 / Key Concepts Quick Reference</h3>
+<table class="summary">
+<tr><th>英文术语</th><th>中文术语</th><th>含义</th></tr>
+<tr><td>Function Approximation</td><td>函数近似</td><td>用参数化函数代替表格来近似价值函数</td></tr>
+<tr><td>Mean Squared Value Error (VE)</td><td>均方价值误差</td><td>加权状态分布下的近似误差度量</td></tr>
+<tr><td>Stochastic Gradient Descent (SGD)</td><td>随机梯度下降</td><td>逐样本沿负梯度方向更新权重</td></tr>
+<tr><td>Semi-gradient Methods</td><td>半梯度方法</td><td>忽略目标对w依赖的自举方法</td></tr>
+<tr><td>TD Fixed Point</td><td>TD不动点</td><td>线性TD(0)的收敛点 w=A⁻¹b</td></tr>
+<tr><td>Feature Vector / Basis Functions</td><td>特征向量 / 基函数</td><td>将状态映射为d维实值向量</td></tr>
+<tr><td>Coarse Coding / Tile Coding</td><td>粗编码 / 瓦片编码</td><td>用重叠的二值特征表示连续状态</td></tr>
+<tr><td>Fourier Basis</td><td>傅里叶基</td><td>基于余弦函数的特征族</td></tr>
+<tr><td>LSTD</td><td>最小二乘TD</td><td>直接求解TD不动点的最数据高效方法</td></tr>
+<tr><td>Kernel Trick</td><td>核技巧</td><td>隐式在高维特征空间中工作的计算技巧</td></tr>
+<tr><td>Interest & Emphasis</td><td>兴趣与强调</td><td>对不同状态施加不同关注程度的机制</td></tr>
+</table>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>有限马尔可夫决策过程 | Finite MDPs - RL Book Ch.3 Bilingual</title>
+<style>
+  :root { --bg:#f8f9fa;--card-bg:#fff;--en-color:#2c3e50;--cn-color:#c0392b;--accent:#8e44ad;--border:#e0e0e0;--highlight:#fef9e7; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:"Noto Serif SC","Georgia","Times New Roman",serif;background:var(--bg);color:#333;line-height:1.8;}
+  .hero{background:linear-gradient(135deg,#2d1b69 0%,#5b2c6f 50%,#8e44ad 100%);color:#fff;text-align:center;padding:60px 20px 50px;}
+  .hero h1{font-size:2.1em;margin-bottom:8px;} .hero h2{font-size:1.3em;font-weight:400;opacity:.85;}
+  .hero .meta{margin-top:16px;font-size:.9em;opacity:.65;}
+  .container{max-width:960px;margin:0 auto;padding:30px 20px 60px;}
+  .toc{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:24px 30px;margin-bottom:36px;}
+  .toc h3{font-size:1.15em;margin-bottom:12px;color:var(--accent);} .toc ol{padding-left:22px;} .toc li{margin:6px 0;}
+  .toc a{text-decoration:none;color:var(--accent);} .toc a:hover{text-decoration:underline;}
+  .section{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:30px 32px;margin-bottom:28px;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .section h3{font-size:1.45em;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:8px;margin-bottom:22px;}
+  .section h4{font-size:1.1em;color:#555;margin:18px 0 10px;}
+  .bilingual{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:18px;}
+  @media(max-width:720px){.bilingual{grid-template-columns:1fr;}}
+  .en{color:var(--en-color);font-size:.95em;padding:14px 16px;background:#f4f0f9;border-left:3px solid var(--accent);border-radius:4px;}
+  .cn{color:var(--cn-color);font-size:.97em;padding:14px 16px;background:#fdf5f3;border-left:3px solid #e74c3c;border-radius:4px;}
+  .en .label,.cn .label{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px;opacity:.55;}
+  .key-term{background:var(--highlight);padding:2px 6px;border-radius:3px;font-weight:600;}
+  .formula{text-align:center;padding:16px;margin:14px 0;background:#f0f0f8;border-radius:6px;font-family:"Courier New",monospace;font-size:1.02em;}
+  .note{background:#f0eaf8;border:1px solid #d4b8e8;border-radius:6px;padding:14px 18px;margin:16px 0;font-size:.92em;}
+  footer{text-align:center;padding:30px 20px;font-size:.85em;color:#888;border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>Chapter 3: Finite Markov Decision Processes</h1>
+  <h2>第三章：有限马尔可夫决策过程</h2>
+  <div class="meta">Reinforcement Learning: An Introduction (2nd Edition) — Sutton &amp; Barto</div>
+</div>
+<div class="container">
+
+<div class="toc">
+  <h3>目录 / Table of Contents</h3>
+  <ol>
+    <li><a href="#s3-1">3.1 智能体-环境接口 / The Agent–Environment Interface</a></li>
+    <li><a href="#s3-2">3.2 目标与奖励 / Goals and Rewards</a></li>
+    <li><a href="#s3-3">3.3 回报与回合 / Returns and Episodes</a></li>
+    <li><a href="#s3-4">3.4 统一符号 / Unified Notation</a></li>
+    <li><a href="#s3-5">3.5 策略与价值函数 / Policies and Value Functions</a></li>
+    <li><a href="#s3-6">3.6 最优策略与最优价值函数 / Optimal Policies and Value Functions</a></li>
+    <li><a href="#s3-7">3.7 最优性与近似 / Optimality and Approximation</a></li>
+    <li><a href="#s3-8">3.8 本章小结 / Summary</a></li>
+  </ol>
+</div>
+
+<!-- 3.1 -->
+<div class="section" id="s3-1">
+  <h3>3.1 智能体-环境接口 / The Agent–Environment Interface</h3>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      MDPs are meant to be a straightforward framing of the problem of learning from interaction to achieve a goal. The learner and decision maker is called the <b>agent</b>. The thing it interacts with, comprising everything outside the agent, is called the <b>environment</b>. These interact continually, the agent selecting actions and the environment responding to these actions and presenting new situations to the agent. The environment also gives rise to <b>rewards</b>, special numerical values that the agent seeks to maximize over time.
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      MDP是对"从交互中学习以实现目标"这一问题的直接表述。学习者和决策者称为<span class="key-term">智能体（agent）</span>。与之交互的、包含智能体之外一切事物的部分称为<span class="key-term">环境（environment）</span>。两者持续交互——智能体选择动作，环境响应这些动作并向智能体呈现新情境。环境还产生<span class="key-term">奖励（rewards）</span>，即智能体力求随时间最大化的特殊数值。
+    </div>
+  </div>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      At each of a sequence of discrete time steps t=0,1,2,..., the agent receives a representation of the environment's <b>state</b> S<sub>t</sub>∈S, selects an <b>action</b> A<sub>t</sub>∈A(s). One step later, it receives a <b>reward</b> R<sub>t+1</sub>∈R and finds itself in a new state S<sub>t+1</sub>. This gives rise to a <b>trajectory</b>: S<sub>0</sub>,A<sub>0</sub>,R<sub>1</sub>,S<sub>1</sub>,A<sub>1</sub>,R<sub>2</sub>,...
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      在离散时间步序列 t=0,1,2,... 的每一步，智能体接收环境<b>状态</b>的表示 S<sub>t</sub>∈S，选择一个<b>动作</b> A<sub>t</sub>∈A(s)。一步之后，它收到一个<b>奖励</b> R<sub>t+1</sub>∈R 并发现自己处于新状态 S<sub>t+1</sub>。这产生了一条<b>轨迹</b>：S<sub>0</sub>,A<sub>0</sub>,R<sub>1</sub>,S<sub>1</sub>,A<sub>1</sub>,R<sub>2</sub>,...
+    </div>
+  </div>
+
+  <h4>动态函数 / Dynamics Function</h4>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      In a <b>finite MDP</b>, the sets of states, actions, and rewards all have a finite number of elements. The random variables R<sub>t</sub> and S<sub>t</sub> have well-defined discrete probability distributions dependent only on the preceding state and action:
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      在<span class="key-term">有限MDP</span>中，状态、动作和奖励的集合都只有有限个元素。随机变量 R<sub>t</sub> 和 S<sub>t</sub> 具有明确定义的离散概率分布，仅依赖于先前的状态和动作：
+    </div>
+  </div>
+  <div class="formula">p(s',r | s,a) = Pr{S<sub>t</sub>=s', R<sub>t</sub>=r | S<sub>t-1</sub>=s, A<sub>t-1</sub>=a}</div>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      The function p defines the <b>dynamics of the MDP</b>. From p we can derive state-transition probabilities p(s'|s,a) = Σ<sub>r</sub> p(s',r|s,a) and expected rewards r(s,a,s') or r(s,a).
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      函数p定义了<b>MDP的动态特性</b>。从p可以导出状态转移概率 p(s'|s,a) 和期望奖励 r(s,a,s') 或 r(s,a)。
+    </div>
+  </div>
+
+  <div class="note"><b>回收机器人示例：</b>一个移动机器人在办公室收集空罐。状态集 S={high, low}（电量高低），动作集 A(high)={search, wait}，A(low)={search, wait, recharge}。搜索时找到罐有正奖励，但消耗电量；电量耗尽时需被"救援"（奖励-3）。该系统可用转移概率表和转移图完整描述。</div>
+</div>
+
+<!-- 3.2 -->
+<div class="section" id="s3-2">
+  <h3>3.2 目标与奖励 / Goals and Rewards</h3>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      The agent's goal is formalized in terms of a special signal called the <b>reward</b>. The agent's goal is to maximize the total amount of reward it receives — not immediate reward, but <b>cumulative reward in the long run</b>. We can state this as the <b>reward hypothesis</b>:<br><br>
+      <i>"All of what we mean by goals and purposes can be well thought of as the maximization of the expected value of the cumulative sum of a received scalar signal (called reward)."</i>
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      智能体的目标通过一种称为<b>奖励</b>的特殊信号来形式化。智能体的目标是最大化接收到的总奖励——不是即时奖励，而是<b>长期累积奖励</b>。我们可以将此表述为<span class="key-term">奖励假设</span>：<br><br>
+      <i>"我们所指的目标和意图都可以很好地被视为最大化接收到的标量信号（称为奖励）累积和的期望值。"</i>
+    </div>
+  </div>
+  <div class="note"><b>关键原则：</b>奖励信号是你向智能体传达你想要<b>什么</b>的方式，而非你希望<b>如何</b>实现它。例如，下棋智能体应仅因获胜而获得奖励，不应因吃掉对手棋子而获奖——否则它可能找到吃子却输棋的方法。</div>
+</div>
+
+<!-- 3.3 -->
+<div class="section" id="s3-3">
+  <h3>3.3 回报与回合 / Returns and Episodes</h3>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      The <b>return</b> G<sub>t</sub> is the function of future rewards that the agent seeks to maximize. For <b>episodic tasks</b> (which naturally break into subsequences called episodes, e.g., games, maze runs):
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      <span class="key-term">回报（return）</span>G<sub>t</sub> 是智能体力图最大化的未来奖励函数。对于<span class="key-term">回合性任务</span>（自然地分为子序列——称为"回合"，如棋局、迷宫穿越）：
+    </div>
+  </div>
+  <div class="formula">G<sub>t</sub> = R<sub>t+1</sub> + R<sub>t+2</sub> + ... + R<sub>T</sub> &nbsp;&nbsp; (回合性任务)</div>
+
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      For <b>continuing tasks</b> (which go on without limit), we use <b>discounting</b>. The agent chooses actions to maximize the <b>expected discounted return</b>:
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      对于<span class="key-term">持续性任务</span>（无限期进行），我们使用<b>折扣</b>。智能体选择动作以最大化<b>期望折扣回报</b>：
+    </div>
+  </div>
+  <div class="formula">G<sub>t</sub> = R<sub>t+1</sub> + γR<sub>t+2</sub> + γ²R<sub>t+3</sub> + ... = Σ<sub>k=0</sub><sup>∞</sup> γ<sup>k</sup>R<sub>t+k+1</sub></div>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      where <b>γ</b> (0≤γ≤1) is the <b>discount rate</b>. If γ=0, the agent is "myopic" — only concerned with immediate rewards. As γ→1, the agent becomes more farsighted. A critical recursive relationship holds: <b>G<sub>t</sub> = R<sub>t+1</sub> + γG<sub>t+1</sub></b>
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      其中 <b>γ</b>（0≤γ≤1）是<span class="key-term">折扣率</span>。若γ=0，智能体是"近视的"——只关心即时奖励。当γ→1时，智能体变得更有远见。一个关键的递归关系成立：<b>G<sub>t</sub> = R<sub>t+1</sub> + γG<sub>t+1</sub></b>
+    </div>
+  </div>
+</div>
+
+<!-- 3.4 -->
+<div class="section" id="s3-4">
+  <h3>3.4 回合与持续性任务的统一符号 / Unified Notation</h3>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      We unify episodic and continuing tasks by considering episode termination as entering a special <b>absorbing state</b> that transitions only to itself and generates only zero rewards. This way the same return formula works for both cases, and we include the possibility that T=∞ or γ=1 (but not both).
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      我们通过将回合终止视为进入一个特殊的<b>吸收状态</b>来统一回合性和持续性任务——该状态仅转移到自身且仅产生零奖励。这样同一回报公式适用于两种情况，且允许T=∞或γ=1（但不同时）。
+    </div>
+  </div>
+</div>
+
+<!-- 3.5 -->
+<div class="section" id="s3-5">
+  <h3>3.5 策略与价值函数 / Policies and Value Functions</h3>
+
+  <h4>策略 (Policy)</h4>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      A <b>policy</b> is a mapping from states to probabilities of selecting each possible action: π(a|s) = Pr{A<sub>t</sub>=a | S<sub>t</sub>=s}. Reinforcement learning methods specify how the agent's policy is changed as a result of its experience.
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      <span class="key-term">策略（policy）</span>是从状态到选择每个可能动作的概率的映射：π(a|s) = Pr{A<sub>t</sub>=a | S<sub>t</sub>=s}。强化学习方法规定智能体的策略如何随经验而改变。
+    </div>
+  </div>
+
+  <h4>状态价值函数 (State-value Function)</h4>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      The <b>value function</b> of a state s under policy π, denoted v<sub>π</sub>(s), is the expected return when starting in s and following π thereafter:
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      策略π下状态s的<span class="key-term">价值函数</span>记为v<sub>π</sub>(s)，是从s出发并此后遵循π的期望回报：
+    </div>
+  </div>
+  <div class="formula">v<sub>π</sub>(s) = E<sub>π</sub>[G<sub>t</sub> | S<sub>t</sub>=s] = E<sub>π</sub>[Σ<sub>k=0</sub><sup>∞</sup> γ<sup>k</sup>R<sub>t+k+1</sub> | S<sub>t</sub>=s]</div>
+
+  <h4>动作价值函数 (Action-value Function)</h4>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      The value of taking action a in state s under policy π, denoted q<sub>π</sub>(s,a), is the expected return starting from s, taking a, and thereafter following π:
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      策略π下在状态s采取动作a的价值，记为q<sub>π</sub>(s,a)，是从s出发、采取a、此后遵循π的期望回报：
+    </div>
+  </div>
+  <div class="formula">q<sub>π</sub>(s,a) = E<sub>π</sub>[G<sub>t</sub> | S<sub>t</sub>=s, A<sub>t</sub>=a]</div>
+
+  <h4>Bellman方程 / The Bellman Equation</h4>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      A fundamental property: value functions satisfy recursive relationships. The <b>Bellman equation for v<sub>π</sub></b> expresses the value of a state in terms of the values of its successor states:
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      一个基本性质：价值函数满足递归关系。<b>v<sub>π</sub>的Bellman方程</b>用后继状态的价值来表达一个状态的价值：
+    </div>
+  </div>
+  <div class="formula">v<sub>π</sub>(s) = Σ<sub>a</sub> π(a|s) Σ<sub>s',r</sub> p(s',r|s,a) [r + γ v<sub>π</sub>(s')]</div>
+  <div class="note">Bellman方程表明：起始状态的价值必须等于期望下一状态的（折扣）价值加上途中期望奖励。v<sub>π</sub>是其Bellman方程的唯一解。</div>
+</div>
+
+<!-- 3.6 -->
+<div class="section" id="s3-6">
+  <h3>3.6 最优策略与最优价值函数 / Optimal Policies and Optimal Value Functions</h3>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      Solving a RL task means finding a policy that achieves a lot of reward over the long run. A policy π is better than π' if v<sub>π</sub>(s) ≥ v<sub>π'</sub>(s) for all s. There is always at least one <b>optimal policy</b> π*. All optimal policies share the same <b>optimal state-value function</b> and <b>optimal action-value function</b>:
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      解决RL任务就是找到长期获得大量奖励的策略。若对所有s都有v<sub>π</sub>(s) ≥ v<sub>π'</sub>(s)，则π优于π'。总存在至少一个<span class="key-term">最优策略</span>π*。所有最优策略共享相同的<b>最优状态价值函数</b>和<b>最优动作价值函数</b>：
+    </div>
+  </div>
+  <div class="formula">v*(s) = max<sub>π</sub> v<sub>π</sub>(s) &nbsp;&nbsp;&nbsp; q*(s,a) = max<sub>π</sub> q<sub>π</sub>(s,a)</div>
+
+  <h4>Bellman最优方程 / Bellman Optimality Equation</h4>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      The Bellman optimality equation expresses the fact that the value of a state under an optimal policy must equal the expected return for the best action from that state:
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      Bellman最优方程表达了这样一个事实：最优策略下一个状态的价值必须等于从该状态采取最佳动作的期望回报：
+    </div>
+  </div>
+  <div class="formula">v*(s) = max<sub>a∈A(s)</sub> Σ<sub>s',r</sub> p(s',r|s,a) [r + γ v*(s')]</div>
+  <div class="formula">q*(s,a) = Σ<sub>s',r</sub> p(s',r|s,a) [r + γ max<sub>a'</sub> q*(s',a')]</div>
+
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      <b>Key insight:</b> Once we have v*, determining an optimal policy is easy — for each state, find the action that achieves the maximum in the Bellman optimality equation (a one-step search). Having q* makes it even easier: simply find any action that maximizes q*(s,a), without needing to know anything about the environment's dynamics.
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      <b>核心洞见：</b>一旦有了v*，确定最优策略很容易——对每个状态，找到在Bellman最优方程中取得最大值的动作（一步搜索）。有了q*更简单：只需找到最大化q*(s,a)的任何动作，无需知道环境的动态特性。
+    </div>
+  </div>
+
+  <div class="note"><b>网格世界示例：</b>一个矩形网格中，四个方向的动作确定性地移动智能体。特殊状态A（奖励+10并转移到A'）和B（奖励+5并转移到B'）。求解v*的Bellman方程得到最优价值函数（图3.5中），最优策略显示为每个格子中指向最优后继的箭头。</div>
+</div>
+
+<!-- 3.7 -->
+<div class="section" id="s3-7">
+  <h3>3.7 最优性与近似 / Optimality and Approximation</h3>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      Explicitly solving the Bellman optimality equation provides one route to finding an optimal policy, but this solution relies on three assumptions rarely true in practice: (1) we accurately know the environment's dynamics; (2) we have enough computational resources; (3) the Markov property. For example, backgammon has ~10²⁰ states — it would take thousands of years to solve exactly.
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      显式求解Bellman最优方程是找到最优策略的一条途径，但该方案依赖三个在实践中很少同时成立的假设：(1) 准确知道环境动态；(2) 有足够的计算资源；(3) 马尔可夫性质。例如，西洋双陆棋约有10²⁰个状态——精确求解需要数千年。
+    </div>
+  </div>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      Many different decision-making methods can be viewed as ways of approximately solving the Bellman optimality equation. The online nature of reinforcement learning makes it possible to approximate optimal policies in ways that put more effort into learning for frequently encountered states, at the expense of less effort for infrequently encountered states.
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      许多不同的决策方法都可以视为近似求解Bellman最优方程的方式。强化学习的在线特性使其能够以如下方式近似最优策略：对频繁遇到的状态投入更多学习精力，而牺牲对不常遇到状态的学习。
+    </div>
+  </div>
+</div>
+
+<!-- 3.8 -->
+<div class="section" id="s3-8">
+  <h3>3.8 本章小结 / Summary</h3>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      <b>Reinforcement learning</b> is about learning from interaction how to behave to achieve a goal. Key elements: <b>actions</b> (choices by agent), <b>states</b> (basis for choices), <b>rewards</b> (basis for evaluation). A <b>policy</b> is a stochastic rule for selecting actions. The <b>return</b> is what the agent maximizes. <b>Value functions</b> assign expected returns to states or state-action pairs. <b>Optimal value functions</b> assign the largest achievable expected return. The <b>Bellman optimality equations</b> are consistency conditions that optimal value functions must satisfy.
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      <b>强化学习</b>是关于从交互中学习如何行动以实现目标的。关键要素：<b>动作</b>（智能体的选择）、<b>状态</b>（选择的基础）、<b>奖励</b>（评价的基础）。<b>策略</b>是选择动作的随机规则。<b>回报</b>是智能体最大化的目标。<b>价值函数</b>为状态或状态-动作对赋予期望回报。<b>最优价值函数</b>赋予可实现的最大期望回报。<b>Bellman最优方程</b>是最优价值函数必须满足的一致性条件。
+    </div>
+  </div>
+  <div class="bilingual">
+    <div class="en"><span class="label">English</span>
+      In <b>complete knowledge</b> problems, the agent has a complete model of the environment's dynamics. In <b>incomplete knowledge</b> problems, no such complete model is available. Even with a complete model, the agent typically cannot perform enough computation per time step to fully use it. A well-defined notion of <b>optimality</b> organizes our approach but is an ideal that agents can only approximate.
+    </div>
+    <div class="cn"><span class="label">中文</span>
+      在<b>完全知识</b>问题中，智能体拥有环境动态的完整模型。在<b>不完全知识</b>问题中，没有这样的完整模型。即使有完整模型，智能体通常也无法在每步进行足够的计算来充分利用它。明确定义的<b>最优性</b>概念组织了我们的方法，但它只是智能体只能不同程度近似的理想目标。
+    </div>
+  </div>
+</div>
+
+<!-- Key Concepts Table -->
+<div class="section">
+  <h3>核心概念速查 / Key Concepts at a Glance</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:.93em;">
+    <thead><tr style="background:#f4f0f9;">
+      <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--accent);">English Term</th>
+      <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--accent);">中文术语</th>
+      <th style="padding:10px 12px;text-align:left;border-bottom:2px solid var(--accent);">简要说明</th>
+    </tr></thead>
+    <tbody>
+      <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">Agent / Environment</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">智能体 / 环境</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">学习者与决策者 / 智能体之外的一切</td></tr>
+      <tr style="background:#fafafa;"><td style="padding:8px 12px;border-bottom:1px solid #eee;">State S<sub>t</sub></td><td style="padding:8px 12px;border-bottom:1px solid #eee;">状态</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">环境在某时刻的表示</td></tr>
+      <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">Dynamics p(s',r|s,a)</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">动态函数</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">MDP的完整概率描述</td></tr>
+      <tr style="background:#fafafa;"><td style="padding:8px 12px;border-bottom:1px solid #eee;">Reward Hypothesis</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">奖励假设</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">所有目标都可视为累积奖励的最大化</td></tr>
+      <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">Return G<sub>t</sub></td><td style="padding:8px 12px;border-bottom:1px solid #eee;">回报</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">未来奖励的（折扣）累积和</td></tr>
+      <tr style="background:#fafafa;"><td style="padding:8px 12px;border-bottom:1px solid #eee;">Episodic / Continuing</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">回合性 / 持续性</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">有自然终点的任务 / 无限持续的任务</td></tr>
+      <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">Discount Rate γ</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">折扣率</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">控制未来奖励的现值，0=近视，1=远视</td></tr>
+      <tr style="background:#fafafa;"><td style="padding:8px 12px;border-bottom:1px solid #eee;">Policy π(a|s)</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">策略</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">状态到动作概率的映射</td></tr>
+      <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">v<sub>π</sub>(s) / q<sub>π</sub>(s,a)</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">状态/动作价值函数</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">遵循策略π的期望回报</td></tr>
+      <tr style="background:#fafafa;"><td style="padding:8px 12px;border-bottom:1px solid #eee;">Bellman Equation</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">Bellman方程</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">价值函数的递归一致性关系</td></tr>
+      <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;">v*(s) / q*(s,a)</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">最优价值函数</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">所有策略中可达到的最大期望回报</td></tr>
+      <tr style="background:#fafafa;"><td style="padding:8px 12px;">Bellman Optimality Eq.</td><td style="padding:8px 12px;">Bellman最优方程</td><td style="padding:8px 12px;">最优价值函数必须满足的特殊一致性条件</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<footer>
+  Source: <em>Reinforcement Learning: An Introduction</em> (2nd Edition) by Richard S. Sutton &amp; Andrew G. Barto<br>
+  本页面仅供学习参考使用 / For educational purposes only
+</footer>
+</body>
+</html>
